@@ -161,7 +161,7 @@
 <div class="app">
   <div class="top">
     <div class="brand"><b>Capillaroscopy Annotator</b>
-      <span id="verTag">v1.9</span>
+      <span id="verTag">v2.0</span>
       <button class="btn ghost" id="bAbout" style="padding:1px 7px;font-size:11px">?</button></div>
     <div class="sep"></div>
     <label class="file btn">Load images<input type="file" id="fFiles" multiple accept="image/*"></label>
@@ -370,7 +370,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null, slot: null
 };
-var APP_VERSION = "1.9";
+var APP_VERSION = "2.0";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -486,6 +486,7 @@ function addFiles(files){
 function select(i){
   if (i < 0 || i >= S.images.length) return;
   S.idx = i; S.sel = null;
+  freeLevels(i);
   openPathTo(S.images[i]);
   fit(); renderTree(); syncPanel();
 }
@@ -611,6 +612,32 @@ function fit(){
   draw();
 }
 function toImg(px,py){ return {x:(px-S.panX)/S.zoom, y:(py-S.panY)/S.zoom}; }
+function levels(r){                      // pre-scaled copies: 100%, 50%, 25%, 12.5%
+  if (!r.levels){
+    r.levels = [];
+    var src = r.img, sc = 1;
+    for (var i = 0; i < 4; i++){
+      var cv = document.createElement("canvas");
+      cv.width  = Math.max(1, Math.round(r.w * sc));
+      cv.height = Math.max(1, Math.round(r.h * sc));
+      var c = cv.getContext("2d");
+      c.imageSmoothingEnabled = true; c.imageSmoothingQuality = "high";
+      c.drawImage(src, 0, 0, cv.width, cv.height);
+      r.levels.push({cv:cv, scale:sc});
+      if (cv.width < 96 || cv.height < 96) break;
+      src = cv; sc /= 2;                 // halving step by step keeps it sharp and fast
+    }
+  }
+  return r.levels;
+}
+function levelFor(r, zoom){              // smallest copy that still covers the zoom level
+  var L = levels(r), best = L[0];
+  for (var i = 0; i < L.length; i++) if (L[i].scale >= zoom) best = L[i];
+  return best;
+}
+function freeLevels(keep){               // only the visible image keeps its pyramid
+  S.images.forEach(function(o, i){ if (i !== keep) o.levels = null; });
+}
 function markerFor(r){ return Math.hypot(r.w, r.h) * 0.0168 * S.markerScale; }
 function markerSize(){ var r = cur(); return r ? markerFor(r) : 20; }
 
@@ -646,9 +673,9 @@ function draw(){
     }
     ctx.restore(); return;
   }
-  ctx.imageSmoothingQuality = "high";
   ctx.translate(S.panX, S.panY); ctx.scale(S.zoom, S.zoom);
-  ctx.drawImage(r.img, 0, 0);
+  var src = levelFor(r, S.zoom);
+  ctx.drawImage(src.cv, 0, 0, r.w, r.h);
   if (r.calib) drawCalib(r.calib);
   r.ann.forEach(function(a){ drawAnn(a, a === S.sel); });
   if (S.drag && S.drag.kind === "line") drawGhost(S.drag);
