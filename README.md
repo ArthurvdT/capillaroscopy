@@ -63,8 +63,8 @@ because the tool enforces consistency in clicking, not in judgement.
 | Capillary | One arrow per capillary loop counted in the distal row |
 | Giant | Homogeneously enlarged loop with a diameter of 50 µm or more, marked with the thick arrow |
 | Dilation | A measurement between 20 µm and 49.9 µm |
-| Abnormal shape 1 | Marked with `$` |
-| Abnormal shape 2 | Marked with `#/$` |
+| Abnormal shape | Marked with `$` |
+| Abnormal shape who twist >=3 | Marked with `#/$` |
 | Microhaemorrhage | Marked with a filled triangle |
 | Diameter | Measured perpendicular to the long axis of the loop, at its widest point |
 | Density | Number of capillaries divided by the image width in millimetres |
