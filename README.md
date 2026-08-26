@@ -120,4 +120,4 @@ When publishing a new version, raise `APP_VERSION` in `index.html` and the cache
 
 ## 9. Contact
 
-Add a contact address here before distributing the tool to other centres.
+For any isseus, please contact: arthur.vandertol@ugent.be
