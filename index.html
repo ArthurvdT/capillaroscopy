@@ -161,7 +161,7 @@
 <div class="app">
   <div class="top">
     <div class="brand"><b>Capillaroscopy Annotator</b>
-      <span id="verTag">v1.8</span>
+      <span id="verTag">v1.9</span>
       <button class="btn ghost" id="bAbout" style="padding:1px 7px;font-size:11px">?</button></div>
     <div class="sep"></div>
     <label class="file btn">Load images<input type="file" id="fFiles" multiple accept="image/*"></label>
@@ -370,7 +370,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null, slot: null
 };
-var APP_VERSION = "1.8";
+var APP_VERSION = "1.9";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -560,18 +560,24 @@ function walk(parent, node, label, path, depth){
   }
 }
 function leafName(i){ return keyOf(S.images[i]).leaf; }
+function thumb(r){                       // rendered once, then reused on every tree rebuild
+  if (r.thumb) return r.thumb;
+  var cv = document.createElement("canvas");
+  cv.width = 68; cv.height = 52;
+  if (r.ready){
+    var c2 = cv.getContext("2d");
+    var k = Math.min(68/r.w, 52/r.h);
+    c2.drawImage(r.img, (68-r.w*k)/2, (52-r.h*k)/2, r.w*k, r.h*k);
+    r.thumb = cv;                        // only cache once the image has decoded
+  }
+  return cv;
+}
 function leafRow(i, depth){
   var r = S.images[i];
   var el = document.createElement("div");
   el.className = "leaf" + (i === S.idx ? " on" : "");
   el.style.paddingLeft = (8 + depth*13) + "px";
-  var cv = document.createElement("canvas");
-  cv.width = 68; cv.height = 52;
-  if (r.ready){
-    var c2 = cv.getContext("2d");
-    var s = Math.min(68/r.w, 52/r.h);
-    c2.drawImage(r.img, (68-r.w*s)/2, (52-r.h*s)/2, r.w*s, r.h*s);
-  }
+  var cv = thumb(r);
   var t = document.createElement("span");
   t.className = "nm"; t.textContent = keyOf(r).leaf;
   var tags = document.createElement("span");
@@ -579,8 +585,14 @@ function leafRow(i, depth){
   tags.innerHTML = '<i class="dot' + (r.pxPerMm ? " ok" : "") + '"></i>' +
                    '<i class="dot' + (r.ann.length ? " ann" : "") + '"></i>';
   el.appendChild(cv); el.appendChild(t); el.appendChild(tags);
+  r.row = tags;                          // handle for cheap dot updates
   el.onclick = function(){ select(i); };
   return el;
+}
+function markLeaf(r){                    // counts changed: update the dots, skip the rebuild
+  if (!r || !r.row) return;
+  r.row.innerHTML = '<i class="dot' + (r.pxPerMm ? " ok" : "") + '"></i>' +
+                    '<i class="dot' + (r.ann.length ? " ann" : "") + '"></i>';
 }
 function esc(s){ return String(s).replace(/[&<>]/g, function(c){
   return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c]; }); }
@@ -609,6 +621,12 @@ function resize(){
   canvas.style.width = st.clientWidth + "px"; canvas.style.height = st.clientHeight + "px";
   ctx.setTransform(dpr,0,0,dpr,0,0);
   draw();
+}
+var rafOn = false;
+function drawSoon(){                     // coalesce repaints into one per animation frame
+  if (rafOn) return;
+  rafOn = true;
+  requestAnimationFrame(function(){ rafOn = false; draw(); });
 }
 function draw(){
   var W = canvas.clientWidth, H = canvas.clientHeight, dpr = window.devicePixelRatio || 1;
@@ -783,12 +801,12 @@ function snap(){
 function undo(){
   var r = cur(); if (!r || !r.undo.length) return;
   r.redo.push(JSON.stringify(r.ann)); r.ann = JSON.parse(r.undo.pop());
-  S.sel = null; draw(); syncPanel(); renderTree();
+  S.sel = null; draw(); syncPanel(); markLeaf(r);
 }
 function redo(){
   var r = cur(); if (!r || !r.redo.length) return;
   r.undo.push(JSON.stringify(r.ann)); r.ann = JSON.parse(r.redo.pop());
-  S.sel = null; draw(); syncPanel(); renderTree();
+  S.sel = null; draw(); syncPanel(); markLeaf(r);
 }
 
 /* ================= pointer ================= */
@@ -818,7 +836,7 @@ canvas.addEventListener("pointerdown", function(e){
     ? {id:uid(), type:"capillary", x:p.x, y:p.y, dir:-90, giant:S.tool === "giant"}
     : {id:uid(), type:S.tool, x:p.x, y:p.y};
   r.ann.push(a); S.sel = a;
-  draw(); syncPanel(); renderTree();
+  draw(); syncPanel(); markLeaf(r);
 });
 
 canvas.addEventListener("pointermove", function(e){
@@ -827,19 +845,19 @@ canvas.addEventListener("pointermove", function(e){
   var p = toImg(px,py);
   updatePos(p);
   var d = S.drag; if (!d) return;
-  if (d.kind === "pan"){ S.panX = d.ox+(px-d.sx); S.panY = d.oy+(py-d.sy); draw(); }
+  if (d.kind === "pan"){ S.panX = d.ox+(px-d.sx); S.panY = d.oy+(py-d.sy); drawSoon(); }
   else if (d.kind === "line"){
     d.x2 = p.x; d.y2 = p.y;
     var L = Math.hypot(d.x2-d.x1, d.y2-d.y1);
     if (d.tool === "measure") showHud(r.pxPerMm ? L/r.pxPerMm*1000 : null, L, false);
     else showHud(null, L, true);
-    draw();
+    drawSoon();
   } else if (d.kind === "move"){
     var dx = p.x-d.sx, dy = p.y-d.sy, a = d.a;
     if (a.type === "measure"){
       a.x1 = d.orig.x1+dx; a.y1 = d.orig.y1+dy; a.x2 = d.orig.x2+dx; a.y2 = d.orig.y2+dy;
     } else { a.x = d.orig.x+dx; a.y = d.orig.y+dy; }
-    draw();
+    drawSoon();
   }
 });
 
@@ -860,9 +878,9 @@ canvas.addEventListener("pointerup", function(){
         var n = nearestCapillary(a); if (n) n.giant = true;
         toast("Giant: " + fmt(a.um,1) + " µm");
       }
-      draw(); syncPanel(); renderTree();
+      draw(); syncPanel(); markLeaf(r);
     }
-  } else if (d.kind === "move"){ syncPanel(); renderTree(); }
+  } else if (d.kind === "move"){ syncPanel(); }
 });
 
 function nearestCapillary(mLine){
@@ -884,7 +902,7 @@ canvas.addEventListener("wheel", function(e){
   S.zoom = Math.max(0.03, Math.min(60, S.zoom * Math.pow(0.9985, e.deltaY)));
   var after = toImg(px,py);
   S.panX += (after.x-before.x)*S.zoom; S.panY += (after.y-before.y)*S.zoom;
-  draw(); $("sZoom").textContent = Math.round(S.zoom*100) + "%";
+  drawSoon(); $("sZoom").textContent = Math.round(S.zoom*100) + "%";
 }, {passive:false});
 
 /* ================= hud ================= */
@@ -930,7 +948,7 @@ $("dOk").onclick = function(){
   recompute(r);
   dirty = true;
   toast(fmt(pendingCalib.px,0) + " px = " + fmt(um,0) + " µm  ·  " + fmt(r.pxPerMm,0) + " px/mm");
-  closeDialog(); syncPanel(); renderTree();
+  closeDialog(); syncPanel(); markLeaf(r);
 };
 $("veil").addEventListener("keydown", function(e){
   if (e.key === "Enter") $("dOk").click();
@@ -1069,7 +1087,7 @@ document.addEventListener("keydown", function(e){
   if (k === "delete" || k === "backspace"){
     var r = cur();
     if (r && S.sel){ snap(); r.ann = r.ann.filter(function(a){ return a !== S.sel; }); S.sel = null;
-      draw(); syncPanel(); renderTree(); }
+      draw(); syncPanel(); markLeaf(r); }
     return;
   }
   if (k === "g" && S.sel && S.sel.type === "capillary"){ snap(); S.sel.giant = !S.sel.giant; draw(); return; }
