@@ -5,7 +5,7 @@ Version 1.3
 A browser-based tool for annotating and counting nailfold videocapillaroscopy (NVC) images.
 It runs entirely on the user's own computer. No image or measurement ever leaves the machine.
 
-Developed by Arthur Vandertol, Ghent University, under the supervision of
+Developed by Arthur van der Tol, Ghent University, under the supervision of
 Prof. Dr. Vanessa Smith.
 
 **Research use only.** This software is intended for research and teaching. It is not a
