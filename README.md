@@ -1,6 +1,6 @@
 # Nailfold Capillaroscopy Annotator
 
-Version 1.6
+Version 1.7
 
 A browser-based tool for annotating and counting nailfold videocapillaroscopy (NVC) images.
 It runs entirely on the user's own computer. No image or measurement ever leaves the machine.
@@ -39,29 +39,32 @@ The tool then works offline and updates itself whenever a new version is publish
 ## 4. File and folder naming
 
 The tool reads patient, visit, hand, finger and image number from the folder and file names.
-**Use the following convention.** It is the only naming the tool is guaranteed to read
-correctly, in any country and any language.
+Only two things are fixed: the visit must be written as `V1` or `V2` (or `Visit 1` and
+`Visit 2`), and the image name must contain the hand, finger and image code, for example `L2A`.
+
+Both layouts below work. Choose whichever suits your centre.
 
 ```
-GHA008/                        <- folder name = patient identifier
-  GHA008_V1_L2A.jpg
-  GHA008_V1_L2B.jpg
-  GHA008_V1_L3A.jpg
-  ...
-  GHA008_V2_R5B.jpg
+GHA008/                        GHA008/            <- folder name = patient identifier
+  GHA008_V1_L2A.jpg              Visit 1/
+  GHA008_V1_L2B.jpg                L2A.jpg
+  GHA008_V1_L3A.jpg                L2B.jpg
+  ...                              L3A.jpg
+  GHA008_V2_R5B.jpg              Visit 2/
+                                   R5B.jpg
 ```
 
-| Part | Meaning | Allowed values |
+| Part | Meaning | Rules |
 |---|---|---|
-| Folder name | Patient identifier | Any name, e.g. `GHA008` or `Ptn3`. Avoid names that are only `V1`, `L`, `R` or `D3`. |
-| `V1`, `V2` | Visit | `V1` = first visit, `V2` = follow-up |
+| Folder name | Patient identifier | Any name: `GHA008`, `Ptn3`, `Patient 12`. Avoid names that are only `V1`, `L`, `R` or `D3`. |
+| `V1`, `V2` | Visit | Required. Written as `V1` / `V2` or as `Visit 1` / `Visit 2`, either as a subfolder or inside the file name. `V1` = first visit, `V2` = follow-up. |
 | `L`, `R` | Hand | `L` = left, `R` = right |
 | `2` to `5` | Finger | Second to fifth finger |
 | `A`, `B` | Image | `A` = first image, `B` = second image of that finger |
 
-Write `V1` and `V2` in English, not in the local language. The tool also accepts some
-variants (`visit 1`, `V01`, `T1`, `baseline`, `follow-up`), but do not rely on them:
-translated words such as `visita`, `Besuch` or `bezoek 1` are not guaranteed to work.
+Anything before the hand code is ignored, so `L2A.jpg` and `GHA008_V1_L2A.jpg` are both read
+correctly. Write the visit in English: `V1` and `V2`, or `Visit 1` and `Visit 2`. Translated
+words such as `visita`, `Besuch` or `bezoek 1` are not read.
 
 If a name cannot be read, the field simply stays empty and the tree shows `No visit` or
 `No hand`. Nothing is lost: fill it in through the Identification panel on the right, or use
