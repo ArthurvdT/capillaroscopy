@@ -1,0 +1,1598 @@
+<meta charset="utf-8">
+<title>Capillaroscopie annotator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Nailfold videocapillaroscopy annotation tool. Runs entirely in your browser; images never leave your computer.">
+<meta name="theme-color" content="#0E1418">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root{
+    --bg:#0E1418; --panel:#151C21; --panel2:#1B242A; --line:#25323A;
+    --text:#E6EDF1; --dim:#8FA3AE; --dimmer:#5E7079;
+    --accent:#35C1B5; --accent-ink:#06231F; --warn:#FFB020; --danger:#FF6B5A;
+    --ui:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--ui);font-size:13px;
+    line-height:1.45;overflow:hidden;-webkit-font-smoothing:antialiased}
+  button,input,select{font-family:inherit;font-size:inherit;color:inherit}
+  button{cursor:pointer}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#2B3840;border-radius:6px}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  .app{display:grid;grid-template-rows:auto 1fr auto;height:100%}
+  .top{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--panel);
+    border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .brand{display:flex;align-items:baseline;gap:9px;margin-right:2px}
+  .brand b{font-size:13px;font-weight:600;letter-spacing:-.01em}
+  .brand span{font-family:var(--mono);font-size:10px;color:var(--dimmer);letter-spacing:.08em;text-transform:uppercase}
+  .sep{width:1px;height:22px;background:var(--line)}
+  .btn{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:5px 10px;
+    color:var(--text);transition:border-color .12s,background .12s}
+  .btn:hover{border-color:#3B4C57;background:#212C33}
+  .btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+  .btn.primary:hover{background:#45D3C6}
+  .btn.ghost{background:transparent}
+  .nav{display:flex;align-items:center;gap:6px;margin-left:auto}
+  .nav .counter{font-family:var(--mono);font-size:11px;color:var(--dim);min-width:70px;text-align:center}
+  label.file{display:inline-block}
+  label.file input{display:none}
+
+  .main{display:grid;grid-template-columns:262px 1fr 272px;min-height:0}
+  .col{background:var(--panel);min-height:0;display:flex;flex-direction:column}
+  .col.left{border-right:1px solid var(--line)}
+  .col.right{border-left:1px solid var(--line);overflow-y:auto}
+  .col.right .colhead{position:sticky;top:0;background:var(--panel);z-index:2}
+  .colhead{padding:9px 12px 7px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--dimmer);border-bottom:1px solid var(--line);
+    display:flex;justify-content:space-between;align-items:center;flex:none;gap:8px}
+  .colhead button{background:none;border:none;color:var(--dimmer);font-family:var(--mono);
+    font-size:10px;letter-spacing:.06em;padding:0}
+  .colhead button:hover{color:var(--accent)}
+  .scroll{overflow-y:auto;flex:1;min-height:0;padding-bottom:14px}
+
+  /* tree */
+  .node{display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap}
+  .node:hover{background:var(--panel2)}
+  .twist{width:13px;height:13px;flex:none;border:1px solid var(--line);border-radius:3px;
+    display:grid;place-items:center;font-family:var(--mono);font-size:10px;line-height:1;
+    color:var(--dim);background:#0F161A}
+  .node:hover .twist{border-color:#3B4C57}
+  .node .nm{font-size:12px;overflow:hidden;text-overflow:ellipsis}
+  .node .ct{font-family:var(--mono);font-size:10px;color:var(--dimmer);margin-left:auto;padding-left:6px}
+  .leaf{display:flex;align-items:center;gap:7px;padding:2px 8px;cursor:pointer}
+  .leaf:hover{background:var(--panel2)}
+  .leaf.on{background:#12312F;box-shadow:inset 2px 0 0 var(--accent)}
+  .leaf canvas{width:34px;height:26px;background:#0A0F12;border-radius:3px;display:block;flex:none}
+  .leaf .nm{font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .leaf .tags{margin-left:auto;display:flex;gap:4px;align-items:center;flex:none}
+  .dot{width:5px;height:5px;border-radius:50%;background:#3A4A53}
+  .dot.ok{background:var(--accent)}
+  .dot.ann{background:var(--warn)}
+  .empty{padding:26px 16px;color:var(--dimmer);font-size:12px;text-align:center;line-height:1.6}
+
+  .stage{position:relative;background:#0A0F12;min-width:0;overflow:hidden}
+  #canvas{display:block;width:100%;height:100%;touch-action:none}
+  .drop{position:absolute;inset:12px;border:1.5px dashed #2E3C45;border-radius:10px;display:flex;
+    align-items:center;justify-content:center;text-align:center;color:var(--dimmer);
+    pointer-events:none;font-size:13px;line-height:1.7}
+  .drop.hot{border-color:var(--accent);background:rgba(53,193,181,.06);color:var(--text)}
+  .hud{position:absolute;left:12px;bottom:12px;background:rgba(10,15,18,.86);border:1px solid var(--line);
+    border-radius:8px;padding:9px 11px;font-family:var(--mono);font-size:11px;backdrop-filter:blur(6px);
+    pointer-events:none;min-width:190px}
+  .hud .big{font-size:19px;letter-spacing:-.02em;margin:1px 0 5px}
+  .hud .lbl{color:var(--dimmer);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase}
+  .band{height:5px;border-radius:3px;position:relative;margin-top:6px;
+    background:linear-gradient(90deg,#3E5058 0 28.6%,#6E7F88 28.6% 71.4%,var(--warn) 71.4% 100%)}
+  .band i{position:absolute;top:-3px;width:2px;height:11px;background:#fff;border-radius:1px}
+  .band-x{position:relative;height:12px;margin-top:2px}
+  .band-x span{position:absolute;color:var(--dimmer);font-size:9px;transform:translateX(-50%)}
+  .band-x span:first-child{transform:none}
+  .band-x span:last-child{transform:translateX(-100%)}
+
+  .tools{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px}
+  .tool{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px;background:var(--panel2);
+    border:1px solid var(--line);text-align:left}
+  .tool:hover{border-color:#3B4C57}
+  .tool.on{background:#123230;border-color:var(--accent)}
+  .tool .gl{width:19px;flex:none;display:grid;place-items:center}
+  .tool .gl svg{display:block}
+  .tool .nm{font-size:11.5px;line-height:1.25}
+  .tool .k{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--dimmer);
+    border:1px solid var(--line);border-radius:3px;padding:0 4px}
+  .tool.wide{grid-column:1/-1}
+
+  .block{padding:10px 12px;border-top:1px solid var(--line)}
+  .block h4{margin:0 0 7px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--dimmer);font-weight:400}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2.5px 0}
+  .row .v{font-family:var(--mono);font-size:12px}
+  .row .k{color:var(--dim);font-size:11.5px;display:flex;align-items:center;gap:6px}
+  .swatch{width:8px;height:8px;border-radius:2px;flex:none;border:1px solid #2B3840}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .field{display:flex;flex-direction:column;gap:3px}
+  .field span{font-size:10px;color:var(--dimmer);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+  input[type=text],input[type=number],select{background:#0F161A;border:1px solid var(--line);
+    border-radius:5px;padding:4px 6px;font-family:var(--mono);font-size:11.5px;width:100%}
+  input:focus,select:focus{outline:none;border-color:var(--accent)}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .scaleflag{font-family:var(--mono);font-size:11px;padding:6px 8px;border-radius:5px;
+    border:1px solid var(--line);background:#0F161A}
+  .scaleflag.bad{color:var(--warn);border-color:#4A3A18;background:#20180A}
+  .scaleflag.ok{color:var(--accent);border-color:#1D4340;background:#0C2523}
+  .hint{color:var(--dimmer);font-size:10.5px;line-height:1.5;margin-top:6px}
+
+  .status{display:flex;align-items:center;gap:16px;padding:5px 12px;background:var(--panel);
+    border-top:1px solid var(--line);font-family:var(--mono);font-size:10.5px;color:var(--dim);flex-wrap:wrap}
+  .status b{color:var(--text);font-weight:500}
+  .status .right{margin-left:auto;color:var(--dimmer)}
+
+  .veil{position:fixed;inset:0;background:rgba(5,8,10,.66);display:none;align-items:center;
+    justify-content:center;z-index:50;backdrop-filter:blur(2px)}
+  .veil.on{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;width:372px;
+    box-shadow:0 18px 50px rgba(0,0,0,.55)}
+  .modal h3{margin:0 0 4px;font-size:14px}
+  .modal p{margin:0 0 13px;color:var(--dim);font-size:12px;line-height:1.55}
+  .modal .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:15px}
+  .prow{display:flex;align-items:center;gap:9px;padding:7px 9px;border:1px solid var(--line);
+    border-radius:6px;margin-bottom:6px;background:#0F161A}
+  .prow.on{border-color:var(--accent);background:#0C2523}
+  .prow .pn{font-size:12.5px}
+  .prow .pm{font-family:var(--mono);font-size:10px;color:var(--dimmer)}
+  .prow .sp{margin-left:auto;display:flex;gap:6px}
+  .prow .btn{padding:3px 8px;font-size:11.5px}
+  .xt{border-collapse:collapse;font-family:var(--mono);font-size:11px;width:100%}
+  .xt th,.xt td{border:1px solid var(--line);padding:3px 5px;text-align:center}
+  .xt th{color:var(--dimmer);font-weight:400;font-size:10px}
+  .xt td.lbl{text-align:left;color:var(--dim);white-space:nowrap;background:#0F161A}
+  .xt td.val{color:var(--text)}
+  .toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%) translateY(8px);background:#12312F;
+    border:1px solid #1D4340;color:var(--text);padding:8px 14px;border-radius:7px;font-size:12px;
+    opacity:0;transition:.2s;pointer-events:none;z-index:60}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="app">
+  <div class="top">
+    <div class="brand"><b>Capillaroscopie annotator</b>
+      <span id="verTag">v1.0</span>
+      <button class="btn ghost" id="bAbout" style="padding:1px 7px;font-size:11px">?</button></div>
+    <div class="sep"></div>
+    <label class="file btn">Foto's laden<input type="file" id="fFiles" multiple accept="image/*"></label>
+    <label class="file btn" id="wDir">Map laden<input type="file" id="fDir" webkitdirectory directory multiple></label>
+    <button class="btn" id="bLink" style="display:none">Map koppelen</button>
+    <div class="sep"></div>
+    <button class="btn ghost" id="bProj">Projecten</button>
+    <div class="sep"></div>
+    <button class="btn ghost" id="bCsv">CSV</button>
+    <button class="btn ghost" id="bXls">Excel-blok</button>
+    <button class="btn ghost" id="bPng">Deze foto</button>
+    <button class="btn primary" id="bZip">Alles opslaan (ZIP)</button>
+    <div class="nav">
+      <button class="btn" id="bPrev" title="Vorige foto (Page Up)">‹</button>
+      <div class="counter" id="counter">0 / 0</div>
+      <button class="btn" id="bNext" title="Volgende foto (Page Down)">›</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="col left">
+      <div class="colhead"><span>Patiënten</span>
+        <button id="bExpand">alles openen</button><button id="bCollapse">sluiten</button></div>
+      <div class="scroll" id="tree">
+        <div class="empty">Nog geen foto's geladen.<br>Sleep ze hierheen of gebruik <b>Map laden</b>.</div>
+      </div>
+    </div>
+
+    <div class="stage" id="stage">
+      <canvas id="canvas"></canvas>
+      <div class="drop" id="drop">Sleep hier je capillaroscopiefoto's naartoe<br>
+        <span style="font-size:11px">of laad een volledige patiëntmap</span></div>
+      <div class="hud" id="hud" style="display:none">
+        <div class="lbl" id="hudLbl">Diameter</div>
+        <div class="big" id="hudVal">–</div>
+        <div class="band"><i id="hudPin" style="left:0%"></i></div>
+        <div class="band-x"><span style="left:0">0</span><span style="left:28.6%">20</span>
+          <span style="left:71.4%">50</span><span style="left:100%">70 µm</span></div>
+      </div>
+    </div>
+
+    <div class="col right">
+      <div class="colhead"><span>Gereedschap</span></div>
+      <div class="tools">
+        <button class="tool" data-tool="select"><span class="gl">✥</span><span class="nm">Selecteren</span><span class="k">V</span></button>
+        <button class="tool on" data-tool="capillary"><span class="gl" id="glCap"></span><span class="nm">Capillair</span><span class="k">1</span></button>
+        <button class="tool" data-tool="giant"><span class="gl" id="glGia"></span><span class="nm">Giant ≥50 µm</span><span class="k">2</span></button>
+        <button class="tool" data-tool="dollar"><span class="gl">$</span><span class="nm">Abn. vorm 1</span><span class="k">3</span></button>
+        <button class="tool" data-tool="hash"><span class="gl" style="font-size:10px">#/$</span><span class="nm">Abn. vorm 2</span><span class="k">4</span></button>
+        <button class="tool" data-tool="triangle"><span class="gl">▲</span><span class="nm">Bloeding</span><span class="k">5</span></button>
+        <button class="tool" data-tool="measure"><span class="gl" style="color:#E8262A">|</span><span class="nm">Meten</span><span class="k">6</span></button>
+        <button class="tool wide" data-tool="scale"><span class="gl" style="color:var(--accent)">⊞</span><span class="nm">Schaal instellen (1 mm-grid)</span><span class="k">7</span></button>
+      </div>
+
+      <div class="block">
+        <h4>Schaal</h4>
+        <div class="scaleflag bad" id="scaleFlag">Niet gekalibreerd</div>
+        <button class="btn ghost" id="bScaleAll" style="width:100%;margin-top:7px">Schaal op alle foto's toepassen</button>
+        <div class="hint">Trek een lijn over één zijde van het 1 mm-vierkant. Kies daarna de eenheid: <b>mm</b>, niet µm.</div>
+      </div>
+
+      <div class="block">
+        <h4>Deze foto</h4>
+        <div class="row"><span class="k">Capillairen</span><span class="v" id="cCap">0</span></div>
+        <div class="row"><span class="k">Dilataties (20–49 µm)</span><span class="v" id="cDil">0</span></div>
+        <div class="row"><span class="k">Giants (dikke pijl)</span><span class="v" id="cGia">0</span></div>
+        <div class="row"><span class="k">Abnormale vorm 1 ($)</span><span class="v" id="cDol">0</span></div>
+        <div class="row"><span class="k">Abnormale vorm 2 (#/$)</span><span class="v" id="cHas">0</span></div>
+        <div class="row"><span class="k">Bloedingen</span><span class="v" id="cHem">0</span></div>
+        <div class="row" style="border-top:1px solid var(--line);margin-top:5px;padding-top:6px">
+          <span class="k">Densiteit</span><span class="v" id="cDen">–</span></div>
+        <div class="row"><span class="k">Gem. diameter</span><span class="v" id="cMean">–</span></div>
+      </div>
+
+      <div class="block">
+        <h4>Identificatie</h4>
+        <div class="grid2">
+          <label class="field"><span>Map / patiënt</span><input type="text" id="mPat" placeholder="GHA008"></label>
+          <label class="field"><span>Visit</span><input type="text" id="mVis" placeholder="1"></label>
+          <label class="field"><span>Hand</span>
+            <select id="mHand"><option value="">–</option><option value="R">Rechts</option><option value="L">Links</option></select></label>
+          <label class="field"><span>Vinger</span>
+            <select id="mFin"><option value="">–</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label>
+          <label class="field" style="grid-column:1/-1"><span>Foto</span><input type="text" id="mPh" placeholder="1"></label>
+        </div>
+      </div>
+
+      <div class="block">
+        <h4>16 foto's ineens indelen</h4>
+        <div class="grid2">
+          <label class="field"><span>Map / patiënt</span><input type="text" id="aPat" placeholder="GHA008"></label>
+          <label class="field"><span>Visit</span><input type="text" id="aVis" placeholder="1"></label>
+          <label class="field" style="grid-column:1/-1"><span>Volgorde</span>
+            <select id="aOrder">
+              <option value="RL">Rechts eerst, dan links</option>
+              <option value="LR">Links eerst, dan rechts</option>
+            </select></label>
+        </div>
+        <button class="btn ghost" id="bAuto" style="width:100%;margin-top:7px">Indelen vanaf huidige foto</button>
+        <div class="hint">Vult vanaf de geselecteerde foto 16 stuks in: per hand vinger 2 t/m 5, telkens foto 1 en 2.</div>
+      </div>
+
+      <div class="block">
+        <h4>Weergave</h4>
+        <div class="row"><span class="k">Stijl</span>
+          <select id="scheme" style="width:126px">
+            <option value="black">Zwart (print)</option>
+            <option value="contrast">Contrast (kleur)</option>
+          </select></div>
+        <div class="row"><span class="k">Markergrootte</span><span class="v" id="szVal">100%</span></div>
+        <input type="range" id="mSize" min="30" max="220" value="100">
+        <div class="hint">De originele foto wordt nooit gewijzigd. Annotaties zitten in een aparte laag.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="status">
+    <span>Zoom <b id="sZoom">100%</b></span>
+    <span>Cursor <b id="sPos">–</b></span>
+    <span id="sSel">Niets geselecteerd</span>
+    <span id="sSave">Niet opgeslagen</span>
+    <span class="right">Scroll = zoomen · spatie of rechtermuisknop = pannen · Ctrl+Z · Del · G = giant · R = draaien</span>
+  </div>
+</div>
+
+<div class="veil" id="veil">
+  <div class="modal">
+    <h3>Schaal instellen</h3>
+    <p>Je trok een lijn over het grid. Welke afstand is dat in werkelijkheid?</p>
+    <div class="grid2">
+      <label class="field"><span>Afstand</span><input type="number" id="dVal" value="1" step="any"></label>
+      <label class="field"><span>Eenheid</span>
+        <select id="dUnit"><option value="1000">mm</option><option value="1">µm</option></select></label>
+    </div>
+    <div class="scaleflag ok" id="dPrev" style="margin-top:10px">–</div>
+    <div class="acts">
+      <button class="btn ghost" id="dCancel">Annuleren</button>
+      <button class="btn primary" id="dOk">Toepassen</button>
+    </div>
+  </div>
+</div>
+<div class="veil" id="veil4">
+  <div class="modal" style="width:470px">
+    <h3>Nailfold Capillaroscopy Annotator</h3>
+    <p><b>Versie <span id="aboutVer"></span></b><br>
+       Ontwikkeld door Arthur Vandertol, Universiteit Gent.<br>
+       Onder supervisie van prof. dr. Vanessa Smith.</p>
+    <p style="border-top:1px solid var(--line);padding-top:11px">
+       <b>Research use only.</b> Deze software is bedoeld voor onderzoek en onderwijs.
+       Ze is geen medisch hulpmiddel en mag niet worden gebruikt voor diagnose of
+       klinische besluitvorming.</p>
+    <p><b>Privacy.</b> Alle beeldverwerking gebeurt lokaal in uw browser. Er worden geen
+       beelden of gegevens naar een server verzonden.</p>
+    <p style="font-size:11px;color:var(--dimmer)">Vermeld bij publicatie de versie die u gebruikte.
+       Het versienummer staat in elke CSV- en projectexport.</p>
+    <div class="acts"><button class="btn primary" id="aboutClose">Sluiten</button></div>
+  </div>
+</div>
+<div class="veil" id="veil3">
+  <div class="modal" style="width:580px">
+    <h3>Projecten</h3>
+    <p>Opgeslagen in het programma zelf, op deze computer. Je foto's blijven waar ze staan: laad de map
+       opnieuw en het project koppelt zichzelf terug aan de juiste foto's.</p>
+    <div style="display:flex;gap:8px;align-items:flex-end">
+      <label class="field" style="flex:1"><span>Naam</span><input type="text" id="pName" placeholder="GHA008"></label>
+      <button class="btn primary" id="pSave">Opslaan in programma</button>
+    </div>
+    <div id="pList" style="margin-top:13px;max-height:236px;overflow:auto"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;border-top:1px solid var(--line);padding-top:12px">
+      <label class="file btn ghost">Openen uit bestand<input type="file" id="fProj" accept=".json"></label>
+      <button class="btn ghost" id="bSave">Opslaan als bestand (.json)</button>
+    </div>
+    <div class="acts"><button class="btn ghost" id="pClose">Sluiten</button></div>
+  </div>
+</div>
+<div class="veil" id="veil2">
+  <div class="modal" style="width:660px">
+    <h3>Telling voor Excel</h3>
+    <p>Eén blok per visit: 5 rijen, 16 kolommen, één kolom per foto. Plak het in de cel van
+       <b>N° of capillaries</b> onder <b>Left Hand, 2nd</b>, eerste kolom.</p>
+    <div style="display:flex;gap:8px;align-items:flex-end">
+      <label class="field" id="xPatWrap" style="flex:1"><span>Map / patiënt</span><select id="xPat"></select></label>
+      <label class="field" style="width:180px"><span>Visit</span><select id="xVis"></select></label>
+    </div>
+    <div id="xPrev" style="overflow:auto;margin-top:12px;max-height:270px"></div>
+    <div class="acts">
+      <button class="btn ghost" id="xClose">Sluiten</button>
+      <button class="btn primary" id="xCopy">Kopieer blok</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ================= state ================= */
+var S = {
+  images: [], idx: -1, tool: "capillary",
+  zoom: 1, panX: 0, panY: 0,
+  sel: null, drag: null,
+  scheme: "black", markerScale: 1,
+  open: {}, pending: null, slot: null
+};
+var APP_VERSION = "1.0";
+var GIANT = 50, DILAT = 20;
+var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+
+var COLORS = {
+  black:   {capillary:"#000000", giant:"#000000", hash:"#000000", dollar:"#000000",
+            triangle:"#000000", measure:"#E8262A", text:"#000000", halo:null},
+  contrast:{capillary:"#22D3EE", giant:"#FFB020", hash:"#FDE047", dollar:"#F472B6",
+            triangle:"#FFFFFF", measure:"#A3E635", text:"#FFFFFF", halo:"rgba(0,0,0,.75)"}
+};
+function C(){ return COLORS[S.scheme]; }
+
+var $ = function(id){ return document.getElementById(id); };
+var canvas = $("canvas"), ctx = canvas.getContext("2d");
+
+/* ================= helpers ================= */
+function cur(){ return S.idx >= 0 ? S.images[S.idx] : null; }
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function fmt(n,d){ return (Math.round(n*Math.pow(10,d))/Math.pow(10,d)).toFixed(d); }
+function pad3(v){ v = String(v).replace(/^0+/,""); return v.length >= 3 ? v : ("00"+v).slice(-3); }
+function toast(m){
+  var t = $("toast"); t.textContent = m; t.classList.add("on");
+  clearTimeout(toast._t); toast._t = setTimeout(function(){ t.classList.remove("on"); }, 2400);
+}
+function folderOf(path){
+  var seg = String(path).split("/"); seg.pop();                 // drop the file name
+  while (seg.length){
+    var last = seg[seg.length-1];
+    if (/^(visit|bezoek|v)[\s_\-]?\d/i.test(last) || /^(links|rechts|left|right|[lr])$/i.test(last) ||
+        /^(vinger|finger|dig|d)[\s_\-]?\d/i.test(last) || /^(foto|photo)/i.test(last)){ seg.pop(); continue; }
+    return last;                                                // deepest folder that is not visit/hand/finger
+  }
+  return "";
+}
+function groupLabel(p){
+  if (!p) return "Zonder map";
+  return /^\d+$/.test(p) ? "Patiënt " + pad3(p) : p;
+}
+function parseMeta(path){
+  var s = path || "", base = s.split("/").pop(), m = {patient:"",visit:"",hand:"",finger:"",photo:""}, r;
+  m.patient = folderOf(s);
+  if (!m.patient && (r = base.match(/^([A-Za-z]{2,6}[\s_\-]?\d{2,5})/))) m.patient = r[1];
+  if (!m.patient && (r = s.match(/(?:pat|patient|patiënt|pt)[\s_\-]?0*(\d{1,4})/i))) m.patient = r[1];
+  if ((r = s.match(/(?:visit|bezoek|v|t)[\s_\-]?([12])(?!\d)/i))) m.visit = r[1];
+  // compact code such as _L2A / _R3B  →  hand, finger, photo
+  if ((r = base.match(/[_\-\s]([LR])[\s_\-]?([2-5])[\s_\-]?([AB12])(?=[_\-.]|$)/i))){
+    m.hand = r[1].toUpperCase(); m.finger = r[2];
+    m.photo = /[A1]/i.test(r[3]) ? "1" : "2";
+  }
+  if (!m.hand){
+    if (/(right|rechts)/i.test(s) || /[_\-\/\s]R[_\-\/\s]/.test(s)) m.hand = "R";
+    if (/(left|links)/i.test(s)   || /[_\-\/\s]L[_\-\/\s]/.test(s)) m.hand = "L";
+  }
+  if (!m.finger && (r = s.match(/(?:finger|vinger|dig|d)[\s_\-]?([2-5])(?!\d)/i))) m.finger = r[1];
+  if (!m.photo && (r = s.match(/(?:foto|photo|img|im)[\s_\-]?([12])(?!\d)/i)))      m.photo = r[1];
+  if (!m.photo && (r = s.match(/[_\-\/\s]([12AB])\.[a-z0-9]+$/i))) m.photo = /[A1]/i.test(r[1]) ? "1" : "2";
+  return m;
+}
+
+/* ================= loading ================= */
+function pathOf(f){ return f.webkitRelativePath || f._path || f.name; }
+function addFiles(files){
+  var arr = Array.prototype.slice.call(files).filter(function(f){
+    return /^image\//.test(f.type) || /\.(jpe?g|png|tiff?|bmp|webp)$/i.test(f.name);
+  });
+  if (!arr.length) return;
+  arr.sort(function(a,b){
+    return pathOf(a).localeCompare(pathOf(b), undefined, {numeric:true});
+  });
+  var first = S.images.length, pending = arr.length;
+  arr.forEach(function(f){
+    var url = URL.createObjectURL(f), im = new Image();
+    var path = pathOf(f);
+    var rec = {id:uid(), name:f.name, path:path, url:url, img:im, w:0, h:0, ready:false,
+               pxPerMm:null, calib:null, meta:parseMeta(path), ann:[], undo:[], redo:[]};
+    var saved = S.pending && (S.pending[path] || S.pending[f.name]);
+    if (saved){
+      rec.ann = saved.ann || []; rec.pxPerMm = saved.pxPerMm || null;
+      rec.calib = saved.calib || null; if (saved.meta) rec.meta = saved.meta;
+    }
+    S.images.push(rec);
+    var done = function(){
+      pending--;
+      if (pending === 0 && S.idx < 0){ select(first); return; }
+      renderTree();
+      if (S.images[S.idx] === rec) draw();
+    };
+    im.onload = function(){
+      if (!im.naturalWidth){ im.onerror(); return; }
+      rec.w = im.naturalWidth; rec.h = im.naturalHeight; rec.ready = true;
+      if (S.images[S.idx] === rec) fit();
+      done();
+    };
+    im.onerror = function(){
+      if (!rec.retried){                       // sandboxed viewers can block blob: URLs
+        rec.retried = true;
+        var fr = new FileReader();
+        fr.onload = function(){ rec.url = fr.result; im.src = fr.result; };
+        fr.onerror = function(){ rec.broken = true; done(); };
+        fr.readAsDataURL(f); return;
+      }
+      rec.broken = true; done();
+    };
+    im.src = url;
+  });
+  $("drop").style.display = "none";
+}
+
+function select(i){
+  if (i < 0 || i >= S.images.length) return;
+  S.idx = i; S.sel = null;
+  openPathTo(S.images[i]);
+  fit(); renderTree(); syncPanel();
+}
+
+/* ================= tree ================= */
+function keyOf(r){
+  var m = r.meta;
+  return {
+    p: groupLabel(m.patient),
+    v: m.visit   ? "Visit " + m.visit           : "Zonder visit",
+    h: m.hand === "R" ? "Rechts" : m.hand === "L" ? "Links" : "Zonder hand",
+    f: m.finger  ? "Vinger " + m.finger         : "Zonder vinger",
+    leaf: m.photo ? "Foto " + m.photo : r.name
+  };
+}
+function openPathTo(r){
+  var k = keyOf(r);
+  S.open[k.p] = true;
+  S.open[k.p+"/"+k.v] = true;
+  S.open[k.p+"/"+k.v+"/"+k.h] = true;
+  S.open[k.p+"/"+k.v+"/"+k.h+"/"+k.f] = true;
+}
+function buildTree(){
+  var root = {};
+  S.images.forEach(function(r, i){
+    var k = keyOf(r);
+    var a = root[k.p] || (root[k.p] = {});
+    var b = a[k.v] || (a[k.v] = {});
+    var c = b[k.h] || (b[k.h] = {});
+    var d = c[k.f] || (c[k.f] = []);
+    d.push(i);
+  });
+  return root;
+}
+function countLeaves(n){
+  if (Array.isArray(n)) return n.length;
+  var t = 0; for (var k in n) t += countLeaves(n[k]); return t;
+}
+function renderTree(){
+  var box = $("tree");
+  $("counter").textContent = (S.idx+1) + " / " + S.images.length;
+  if (!S.images.length){
+    box.innerHTML = '<div class="empty">Nog geen foto\'s geladen.<br>Sleep ze hierheen of gebruik <b>Map laden</b>.</div>';
+    return;
+  }
+  var root = buildTree(), frag = document.createDocumentFragment();
+  Object.keys(root).sort(natCmp).forEach(function(p){
+    walk(frag, root[p], p, p, 0);
+  });
+  box.innerHTML = ""; box.appendChild(frag);
+}
+function natCmp(a,b){ return a.localeCompare(b, undefined, {numeric:true}); }
+
+function walk(parent, node, label, path, depth){
+  var open = !!S.open[path];
+  var row = document.createElement("div");
+  row.className = "node";
+  row.style.paddingLeft = (8 + depth*13) + "px";
+  row.innerHTML = '<i class="twist">' + (open ? "−" : "+") + '</i>' +
+                  '<span class="nm">' + esc(label) + '</span>' +
+                  '<span class="ct">' + countLeaves(node) + '</span>';
+  row.onclick = function(){ S.open[path] = !S.open[path]; renderTree(); };
+  parent.appendChild(row);
+  if (!open) return;
+  if (Array.isArray(node)){
+    node.slice().sort(function(x,y){ return natCmp(leafName(x), leafName(y)); })
+        .forEach(function(i){ parent.appendChild(leafRow(i, depth+1)); });
+  } else {
+    Object.keys(node).sort(natCmp).forEach(function(k){
+      walk(parent, node[k], k, path + "/" + k, depth+1);
+    });
+  }
+}
+function leafName(i){ return keyOf(S.images[i]).leaf; }
+function leafRow(i, depth){
+  var r = S.images[i];
+  var el = document.createElement("div");
+  el.className = "leaf" + (i === S.idx ? " on" : "");
+  el.style.paddingLeft = (8 + depth*13) + "px";
+  var cv = document.createElement("canvas");
+  cv.width = 68; cv.height = 52;
+  if (r.ready){
+    var c2 = cv.getContext("2d");
+    var s = Math.min(68/r.w, 52/r.h);
+    c2.drawImage(r.img, (68-r.w*s)/2, (52-r.h*s)/2, r.w*s, r.h*s);
+  }
+  var t = document.createElement("span");
+  t.className = "nm"; t.textContent = keyOf(r).leaf;
+  var tags = document.createElement("span");
+  tags.className = "tags";
+  tags.innerHTML = '<i class="dot' + (r.pxPerMm ? " ok" : "") + '"></i>' +
+                   '<i class="dot' + (r.ann.length ? " ann" : "") + '"></i>';
+  el.appendChild(cv); el.appendChild(t); el.appendChild(tags);
+  el.onclick = function(){ select(i); };
+  return el;
+}
+function esc(s){ return String(s).replace(/[&<>]/g, function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c]; }); }
+
+$("bExpand").onclick = function(){
+  S.images.forEach(openPathTo); renderTree();
+};
+$("bCollapse").onclick = function(){ S.open = {}; renderTree(); };
+
+/* ================= view ================= */
+function fit(){
+  var r = cur(); if (!r || !r.ready) return;
+  var W = canvas.clientWidth, H = canvas.clientHeight;
+  S.zoom = Math.min(W/r.w, H/r.h) * 0.94;
+  S.panX = (W - r.w*S.zoom)/2; S.panY = (H - r.h*S.zoom)/2;
+  draw();
+}
+function toImg(px,py){ return {x:(px-S.panX)/S.zoom, y:(py-S.panY)/S.zoom}; }
+function markerFor(r){ return Math.hypot(r.w, r.h) * 0.0168 * S.markerScale; }
+function markerSize(){ var r = cur(); return r ? markerFor(r) : 20; }
+
+/* ================= drawing ================= */
+function resize(){
+  var st = $("stage"), dpr = window.devicePixelRatio || 1;
+  canvas.width = st.clientWidth * dpr; canvas.height = st.clientHeight * dpr;
+  canvas.style.width = st.clientWidth + "px"; canvas.style.height = st.clientHeight + "px";
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  draw();
+}
+function draw(){
+  var W = canvas.clientWidth, H = canvas.clientHeight, dpr = window.devicePixelRatio || 1;
+  ctx.save();
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,W,H);
+  var r = cur();
+  if (!r || !r.ready){
+    if (r){
+      ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "13px " + UIFONT;
+      ctx.fillStyle = r.broken ? "#FFB020" : "#5E7079";
+      ctx.fillText(r.broken ? "Kon deze foto niet lezen: " + r.name : "Foto wordt geladen\u2026", W/2, H/2-10);
+      if (r.broken){
+        ctx.fillStyle = "#5E7079";
+        ctx.fillText("Open de tool rechtstreeks in Chrome, of controleer het bestandsformaat.", W/2, H/2+12);
+      }
+    }
+    ctx.restore(); return;
+  }
+  ctx.imageSmoothingQuality = "high";
+  ctx.translate(S.panX, S.panY); ctx.scale(S.zoom, S.zoom);
+  ctx.drawImage(r.img, 0, 0);
+  if (r.calib) drawCalib(r.calib);
+  r.ann.forEach(function(a){ drawAnn(a, a === S.sel); });
+  if (S.drag && S.drag.kind === "line") drawGhost(S.drag);
+  ctx.restore();
+  drawScaleBar();
+}
+
+function drawAnn(a, on){
+  var col = C(), m = markerSize();
+  if (a.type === "capillary")      drawArrow(a, col, m);
+  else if (a.type === "hash")      drawGlyph(a, "#/$", col.hash, m, 0.72);
+  else if (a.type === "dollar")    drawGlyph(a, "$", col.dollar, m);
+  else if (a.type === "triangle")  drawTri(a, col, m);
+  else if (a.type === "measure")   drawMeasure(a, col, m);
+  if (on) ring(a, m);
+}
+function drawArrow(a, col, m){
+  var g = !!a.giant;
+  var L  = m*2.9;                    // total length
+  var hl = g ? m*1.15 : m*0.80;      // head length
+  var hw = g ? m*0.90 : m*0.40;      // head half-width
+  var sw = g ? m*0.40 : m*0.095;     // shaft half-width
+  var ang = a.dir * Math.PI/180;
+  var ux = Math.cos(ang), uy = Math.sin(ang), px = -uy, py = ux;
+  var bx = a.x - ux*hl,  by = a.y - uy*hl;
+  var ex = a.x - ux*L,   ey = a.y - uy*L;
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(bx + px*hw, by + py*hw);
+  ctx.lineTo(bx + px*sw, by + py*sw);
+  ctx.lineTo(ex + px*sw, ey + py*sw);
+  ctx.lineTo(ex - px*sw, ey - py*sw);
+  ctx.lineTo(bx - px*sw, by - py*sw);
+  ctx.lineTo(bx - px*hw, by - py*hw);
+  ctx.closePath();
+  if (col.halo){ ctx.strokeStyle = col.halo; ctx.lineWidth = m*0.10; ctx.lineJoin = "round"; ctx.stroke(); }
+  ctx.fillStyle = g ? col.giant : col.capillary;
+  ctx.fill();
+}
+function drawTri(a, col, m){
+  var s = m*0.95;
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y - s*0.60);
+  ctx.lineTo(a.x + s*0.56, a.y + s*0.45);
+  ctx.lineTo(a.x - s*0.56, a.y + s*0.45);
+  ctx.closePath();
+  if (col.halo){ ctx.strokeStyle = col.halo; ctx.lineWidth = m*0.12; ctx.lineJoin="round"; ctx.stroke(); }
+  ctx.fillStyle = col.triangle; ctx.fill();
+}
+function drawGlyph(a, ch, color, m, shrink){
+  var col = C();
+  ctx.font = "700 " + (m*1.7*(shrink||1)) + "px " + UIFONT;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  if (col.halo){ ctx.lineWidth = m*0.22; ctx.strokeStyle = col.halo; ctx.strokeText(ch, a.x, a.y); }
+  ctx.fillStyle = color; ctx.fillText(ch, a.x, a.y);
+}
+function drawMeasure(a, col, m){
+  ctx.lineCap = "butt";
+  ctx.strokeStyle = col.measure; ctx.lineWidth = Math.max(m*0.085, 0.6);
+  if (col.halo){
+    ctx.save(); ctx.strokeStyle = col.halo; ctx.lineWidth = Math.max(m*0.085,0.6)*2.4;
+    ctx.beginPath(); ctx.moveTo(a.x1,a.y1); ctx.lineTo(a.x2,a.y2); ctx.stroke(); ctx.restore();
+  }
+  ctx.beginPath(); ctx.moveTo(a.x1,a.y1); ctx.lineTo(a.x2,a.y2); ctx.stroke();
+
+  var label = a.um != null ? fmt(a.um,1) + " µm" : fmt(Math.hypot(a.x2-a.x1,a.y2-a.y1),0) + " px";
+  var lx = (a.x1+a.x2)/2, ly = Math.max(a.y1,a.y2) + m*0.34;   // centred just under the line
+  ctx.font = "600 " + (m*0.68) + "px " + UIFONT;
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  if (col.halo){ ctx.lineWidth = m*0.14; ctx.strokeStyle = col.halo; ctx.strokeText(label, lx, ly); }
+  ctx.fillStyle = col.text; ctx.fillText(label, lx, ly);
+}
+function ring(a, m){
+  var p = anchor(a);
+  ctx.save();
+  ctx.strokeStyle = "#35C1B5"; ctx.lineWidth = Math.max(m*0.055,0.4);
+  ctx.setLineDash([m*0.24, m*0.20]);
+  ctx.beginPath(); ctx.arc(p.x, p.y, m*0.78, 0, Math.PI*2); ctx.stroke();
+  ctx.restore();
+}
+function drawCalib(c){
+  var m = markerSize();
+  ctx.save();
+  ctx.strokeStyle = S.scheme === "black" ? "rgba(0,0,0,.45)" : "#35C1B5";
+  ctx.lineWidth = Math.max(m*0.07,0.5); ctx.setLineDash([m*0.3, m*0.25]);
+  ctx.beginPath(); ctx.moveTo(c.x1,c.y1); ctx.lineTo(c.x2,c.y2); ctx.stroke();
+  ctx.restore();
+}
+function drawGhost(d){
+  var m = markerSize();
+  ctx.save();
+  ctx.strokeStyle = d.tool === "scale" ? "#35C1B5" : C().measure;
+  ctx.lineWidth = Math.max(m*0.085,0.6);
+  ctx.beginPath(); ctx.moveTo(d.x1,d.y1); ctx.lineTo(d.x2,d.y2); ctx.stroke();
+  ctx.restore();
+}
+function drawScaleBar(){
+  var r = cur(); if (!r || !r.pxPerMm) return;
+  var W = canvas.clientWidth, H = canvas.clientHeight;
+  var barPx = r.pxPerMm * S.zoom, mm = 1;
+  while (barPx > 220){ barPx /= 2; mm /= 2; }
+  while (barPx < 46){ barPx *= 2; mm *= 2; }
+  var x = W - barPx - 20, y = H - 26;
+  ctx.save();
+  ctx.fillStyle = "rgba(10,15,18,.8)"; ctx.fillRect(x-10, y-19, barPx+20, 31);
+  ctx.strokeStyle = "#E6EDF1"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(x,y-6); ctx.lineTo(x,y); ctx.lineTo(x+barPx,y); ctx.lineTo(x+barPx,y-6); ctx.stroke();
+  ctx.fillStyle = "#E6EDF1"; ctx.font = "11px " + UIFONT;
+  ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+  ctx.fillText(mm >= 1 ? mm + " mm" : (mm*1000) + " µm", x + barPx/2, y-7);
+  ctx.restore();
+}
+
+/* ================= hit testing ================= */
+function anchor(a){
+  if (a.type === "measure") return {x:(a.x1+a.x2)/2, y:(a.y1+a.y2)/2};
+  return {x:a.x, y:a.y};
+}
+function hit(ix, iy){
+  var r = cur(); if (!r) return null;
+  var tol = Math.max(markerSize()*0.9, 12/S.zoom), best = null, bd = Infinity;
+  for (var i = r.ann.length-1; i >= 0; i--){
+    var a = r.ann[i], d;
+    if (a.type === "measure"){
+      var c = anchor(a);
+      d = Math.min(distSeg(ix,iy,a.x1,a.y1,a.x2,a.y2), Math.hypot(ix-c.x, iy-c.y));
+    } else if (a.type === "capillary"){
+      var ang = a.dir*Math.PI/180, L = markerSize()*2.9;
+      d = distSeg(ix, iy, a.x, a.y, a.x - Math.cos(ang)*L, a.y - Math.sin(ang)*L);
+    } else d = Math.hypot(ix-a.x, iy-a.y);
+    if (d < tol && d < bd){ bd = d; best = a; }
+  }
+  return best;
+}
+function distSeg(px,py,x1,y1,x2,y2){
+  var dx = x2-x1, dy = y2-y1, l2 = dx*dx+dy*dy;
+  if (!l2) return Math.hypot(px-x1,py-y1);
+  var t = Math.max(0, Math.min(1, ((px-x1)*dx+(py-y1)*dy)/l2));
+  return Math.hypot(px-(x1+t*dx), py-(y1+t*dy));
+}
+
+/* ================= undo ================= */
+function snap(){
+  var r = cur(); if (!r) return;
+  dirty = true;
+  r.undo.push(JSON.stringify(r.ann));
+  if (r.undo.length > 80) r.undo.shift();
+  r.redo.length = 0;
+}
+function undo(){
+  var r = cur(); if (!r || !r.undo.length) return;
+  r.redo.push(JSON.stringify(r.ann)); r.ann = JSON.parse(r.undo.pop());
+  S.sel = null; draw(); syncPanel(); renderTree();
+}
+function redo(){
+  var r = cur(); if (!r || !r.redo.length) return;
+  r.undo.push(JSON.stringify(r.ann)); r.ann = JSON.parse(r.redo.pop());
+  S.sel = null; draw(); syncPanel(); renderTree();
+}
+
+/* ================= pointer ================= */
+var spaceDown = false;
+canvas.addEventListener("contextmenu", function(e){ e.preventDefault(); });
+
+canvas.addEventListener("pointerdown", function(e){
+  var r = cur(); if (!r || !r.ready) return;
+  canvas.setPointerCapture(e.pointerId);
+  var b = canvas.getBoundingClientRect(), px = e.clientX-b.left, py = e.clientY-b.top;
+  var p = toImg(px,py);
+  if (e.button === 1 || e.button === 2 || spaceDown || e.shiftKey){
+    S.drag = {kind:"pan", sx:px, sy:py, ox:S.panX, oy:S.panY}; return;
+  }
+  if (e.button !== 0) return;
+  if (S.tool === "select"){
+    var h = hit(p.x, p.y); S.sel = h;
+    if (h){ snap(); S.drag = {kind:"move", a:h, sx:p.x, sy:p.y, orig:JSON.parse(JSON.stringify(h))}; }
+    draw(); syncPanel(); return;
+  }
+  if (S.tool === "measure" || S.tool === "scale"){
+    S.drag = {kind:"line", tool:S.tool, x1:p.x, y1:p.y, x2:p.x, y2:p.y};
+    showHud(null, 0, S.tool === "scale"); return;
+  }
+  snap();
+  var a = (S.tool === "capillary" || S.tool === "giant")
+    ? {id:uid(), type:"capillary", x:p.x, y:p.y, dir:-90, giant:S.tool === "giant"}
+    : {id:uid(), type:S.tool, x:p.x, y:p.y};
+  r.ann.push(a); S.sel = a;
+  draw(); syncPanel(); renderTree();
+});
+
+canvas.addEventListener("pointermove", function(e){
+  var r = cur(); if (!r) return;
+  var b = canvas.getBoundingClientRect(), px = e.clientX-b.left, py = e.clientY-b.top;
+  var p = toImg(px,py);
+  updatePos(p);
+  var d = S.drag; if (!d) return;
+  if (d.kind === "pan"){ S.panX = d.ox+(px-d.sx); S.panY = d.oy+(py-d.sy); draw(); }
+  else if (d.kind === "line"){
+    d.x2 = p.x; d.y2 = p.y;
+    var L = Math.hypot(d.x2-d.x1, d.y2-d.y1);
+    if (d.tool === "measure") showHud(r.pxPerMm ? L/r.pxPerMm*1000 : null, L, false);
+    else showHud(null, L, true);
+    draw();
+  } else if (d.kind === "move"){
+    var dx = p.x-d.sx, dy = p.y-d.sy, a = d.a;
+    if (a.type === "measure"){
+      a.x1 = d.orig.x1+dx; a.y1 = d.orig.y1+dy; a.x2 = d.orig.x2+dx; a.y2 = d.orig.y2+dy;
+    } else { a.x = d.orig.x+dx; a.y = d.orig.y+dy; }
+    draw();
+  }
+});
+
+canvas.addEventListener("pointerup", function(){
+  var r = cur(), d = S.drag; S.drag = null;
+  if (!r || !d) return;
+  if (d.kind === "line"){
+    var L = Math.hypot(d.x2-d.x1, d.y2-d.y1);
+    hideHud();
+    if (L * S.zoom < 4){ draw(); return; }
+    if (d.tool === "scale"){ pendingCalib = {x1:d.x1,y1:d.y1,x2:d.x2,y2:d.y2,px:L}; openDialog(); }
+    else {
+      snap();
+      var a = {id:uid(), type:"measure", x1:d.x1, y1:d.y1, x2:d.x2, y2:d.y2,
+               px:L, um: r.pxPerMm ? L/r.pxPerMm*1000 : null};
+      r.ann.push(a); S.sel = a;
+      if (a.um != null && a.um >= GIANT){
+        var n = nearestCapillary(a); if (n) n.giant = true;
+        toast("Giant: " + fmt(a.um,1) + " µm");
+      }
+      draw(); syncPanel(); renderTree();
+    }
+  } else if (d.kind === "move"){ syncPanel(); renderTree(); }
+});
+
+function nearestCapillary(mLine){
+  var r = cur(), c = anchor(mLine), best = null, bd = Infinity;
+  var tol = Math.max(markerSize()*3.2, 40);
+  r.ann.forEach(function(a){
+    if (a.type !== "capillary") return;
+    var d = Math.hypot(a.x-c.x, a.y-c.y);
+    if (d < tol && d < bd){ bd = d; best = a; }
+  });
+  return best;
+}
+
+canvas.addEventListener("wheel", function(e){
+  var r = cur(); if (!r) return;
+  e.preventDefault();
+  var b = canvas.getBoundingClientRect(), px = e.clientX-b.left, py = e.clientY-b.top;
+  var before = toImg(px,py);
+  S.zoom = Math.max(0.03, Math.min(60, S.zoom * Math.pow(0.9985, e.deltaY)));
+  var after = toImg(px,py);
+  S.panX += (after.x-before.x)*S.zoom; S.panY += (after.y-before.y)*S.zoom;
+  draw(); $("sZoom").textContent = Math.round(S.zoom*100) + "%";
+}, {passive:false});
+
+/* ================= hud ================= */
+function showHud(um, px, isScale){
+  var h = $("hud"); h.style.display = "block";
+  $("hudLbl").textContent = isScale ? "Kalibratielijn" : "Diameter";
+  if (isScale || um == null){
+    $("hudVal").textContent = fmt(px||0,0) + " px"; $("hudPin").style.left = "0%";
+  } else {
+    $("hudVal").textContent = fmt(um,1) + " µm";
+    $("hudPin").style.left = Math.max(0, Math.min(100, um/70*100)) + "%";
+  }
+}
+function hideHud(){ $("hud").style.display = "none"; }
+function updatePos(p){
+  var r = cur(); if (!r) return;
+  $("sPos").textContent = r.pxPerMm
+    ? fmt(p.x/r.pxPerMm*1000,0) + ", " + fmt(p.y/r.pxPerMm*1000,0) + " µm"
+    : Math.round(p.x) + ", " + Math.round(p.y) + " px";
+}
+
+/* ================= calibration ================= */
+var pendingCalib = null;
+function openDialog(){ $("veil").classList.add("on"); previewScale(); $("dVal").focus(); $("dVal").select(); }
+function closeDialog(){ $("veil").classList.remove("on"); pendingCalib = null; draw(); }
+function calcUm(){ return parseFloat($("dVal").value) * parseFloat($("dUnit").value); }
+function previewScale(){
+  if (!pendingCalib) return;
+  var um = calcUm(), el = $("dPrev");
+  if (!(um > 0)){ el.className = "scaleflag bad"; el.textContent = "Vul een afstand groter dan 0 in."; return; }
+  var ppm = pendingCalib.px/um*1000;
+  el.className = "scaleflag ok";
+  el.textContent = fmt(pendingCalib.px,0) + " px  =  " + fmt(um,0) + " µm  →  " +
+                   fmt(ppm,0) + " px/mm  ·  " + fmt(1000/ppm,3) + " µm/px";
+}
+$("dVal").oninput = previewScale; $("dUnit").onchange = previewScale;
+$("dCancel").onclick = closeDialog;
+$("dOk").onclick = function(){
+  var r = cur(); if (!r || !pendingCalib) return closeDialog();
+  var um = calcUm(); if (!(um > 0)) return;
+  r.pxPerMm = pendingCalib.px/um*1000;
+  r.calib = {x1:pendingCalib.x1, y1:pendingCalib.y1, x2:pendingCalib.x2, y2:pendingCalib.y2};
+  recompute(r);
+  dirty = true;
+  toast(fmt(pendingCalib.px,0) + " px = " + fmt(um,0) + " µm  ·  " + fmt(r.pxPerMm,0) + " px/mm");
+  closeDialog(); syncPanel(); renderTree();
+};
+$("veil").addEventListener("keydown", function(e){
+  if (e.key === "Enter") $("dOk").click();
+  if (e.key === "Escape") closeDialog();
+});
+function recompute(r){
+  r.ann.forEach(function(a){
+    if (a.type === "measure"){
+      a.px = Math.hypot(a.x2-a.x1, a.y2-a.y1);
+      a.um = r.pxPerMm ? a.px/r.pxPerMm*1000 : null;
+    }
+  });
+}
+$("bScaleAll").onclick = function(){
+  var r = cur(); if (!r || !r.pxPerMm) return toast("Kalibreer eerst deze foto.");
+  S.images.forEach(function(o){ if (o !== r){ o.pxPerMm = r.pxPerMm; recompute(o); } });
+  dirty = true; renderTree(); syncPanel(); toast("Schaal toegepast op " + S.images.length + " foto's.");
+};
+
+/* ================= stats ================= */
+function stats(r){
+  var s = {cap:0,hash:0,dollar:0,hem:0,giant:0,dil:0,meas:[],mean:null,density:null};
+  var big = [], flagged = 0;
+  r.ann.forEach(function(a){
+    if (a.type === "capillary"){ s.cap++; if (a.giant) flagged++; }
+    else if (a.type === "hash") s.hash++;
+    else if (a.type === "dollar") s.dollar++;
+    else if (a.type === "triangle") s.hem++;
+    else if (a.type === "measure" && a.um != null){
+      s.meas.push(a.um);
+      if (a.um >= GIANT) big.push(a); else if (a.um >= DILAT) s.dil++;
+    }
+  });
+  // a giant is a thick arrow; a ≥50 µm measurement with no thick arrow beside it counts too
+  var tol = Math.max(markerFor(r)*3.2, 40);
+  s.giant = flagged + big.filter(function(a){
+    var cx = (a.x1+a.x2)/2, cy = (a.y1+a.y2)/2;
+    return !r.ann.some(function(b){
+      return b.type === "capillary" && b.giant && Math.hypot(b.x-cx, b.y-cy) < tol;
+    });
+  }).length;
+  if (s.meas.length) s.mean = s.meas.reduce(function(x,y){return x+y;},0)/s.meas.length;
+  if (r.pxPerMm && s.cap) s.density = s.cap/(r.w/r.pxPerMm);
+  return s;
+}
+function syncPanel(){
+  var r = cur();
+  $("counter").textContent = (S.idx+1) + " / " + S.images.length;
+  $("sZoom").textContent = Math.round(S.zoom*100) + "%";
+  var flag = $("scaleFlag");
+  if (!r){
+    flag.className = "scaleflag bad"; flag.textContent = "Geen foto";
+    ["cCap","cDil","cGia","cHas","cDol","cHem"].forEach(function(i){ $(i).textContent = "0"; });
+    $("cDen").textContent = "–"; $("cMean").textContent = "–"; return;
+  }
+  if (r.pxPerMm){
+    flag.className = "scaleflag ok";
+    flag.textContent = fmt(r.pxPerMm,0) + " px = 1 mm  ·  " + fmt(1000/r.pxPerMm,3) + " µm/px";
+  } else {
+    flag.className = "scaleflag bad"; flag.textContent = "Niet gekalibreerd — metingen in pixels";
+  }
+  var s = stats(r);
+  $("cCap").textContent = s.cap; $("cDil").textContent = s.dil; $("cGia").textContent = s.giant;
+  $("cHas").textContent = s.hash; $("cDol").textContent = s.dollar; $("cHem").textContent = s.hem;
+  $("cDen").textContent = s.density != null ? fmt(s.density,1) + " /mm" : "–";
+  $("cMean").textContent = s.mean != null ? fmt(s.mean,1) + " µm" : "–";
+  $("mPat").value = r.meta.patient; $("mVis").value = r.meta.visit;
+  $("mHand").value = r.meta.hand; $("mFin").value = r.meta.finger; $("mPh").value = r.meta.photo;
+  $("sSel").textContent = S.sel
+    ? "Geselecteerd: " + labelOf(S.sel) + " · Del verwijdert" +
+      (S.sel.type === "capillary" ? " · G = giant · R = draaien" : "")
+    : "Niets geselecteerd";
+}
+function labelOf(a){
+  return {capillary:"capillair", dollar:"abnormale vorm 1 ($)", hash:"abnormale vorm 2 (#/$)",
+          triangle:"bloeding", measure:"meting"}[a.type] || a.type;
+}
+["mPat","mVis","mHand","mFin","mPh"].forEach(function(id){
+  $(id).addEventListener("input", function(){
+    var r = cur(); if (!r) return;
+    r.meta = {patient:$("mPat").value.trim(), visit:$("mVis").value.trim(), hand:$("mHand").value,
+              finger:$("mFin").value, photo:$("mPh").value.trim()};
+    openPathTo(r); renderTree(); dirty = true;
+  });
+});
+
+/* ================= bulk assign ================= */
+$("bAuto").onclick = function(){
+  if (S.idx < 0) return toast("Selecteer eerst een startfoto.");
+  var pat = $("aPat").value.trim(), vis = $("aVis").value.trim();
+  if (!pat || !vis) return toast("Vul patiënt en visit in.");
+  var hands = $("aOrder").value === "RL" ? ["R","L"] : ["L","R"];
+  var plan = [];
+  hands.forEach(function(h){
+    [2,3,4,5].forEach(function(f){ [1,2].forEach(function(p){ plan.push({h:h,f:String(f),p:String(p)}); }); });
+  });
+  var n = 0;
+  for (var i = 0; i < plan.length && S.idx+i < S.images.length; i++){
+    var r = S.images[S.idx+i];
+    r.meta = {patient:pat, visit:vis, hand:plan[i].h, finger:plan[i].f, photo:plan[i].p};
+    openPathTo(r); n++;
+  }
+  dirty = true; renderTree(); syncPanel();
+  toast(n + " foto's ingedeeld onder " + groupLabel(pat) + ", visit " + vis + ".");
+};
+
+/* ================= tools & keys ================= */
+function setTool(t){
+  S.tool = t;
+  Array.prototype.forEach.call(document.querySelectorAll(".tool"), function(b){
+    b.classList.toggle("on", b.dataset.tool === t);
+  });
+  canvas.style.cursor = t === "select" ? "default" : "crosshair";
+}
+Array.prototype.forEach.call(document.querySelectorAll(".tool"), function(b){
+  b.onclick = function(){ setTool(b.dataset.tool); };
+});
+$("glCap").innerHTML = '<svg width="9" height="16" viewBox="0 0 9 16">' +
+  '<path d="M4.5 0 L8 5 H5.6 V16 H3.4 V5 H1 Z" fill="currentColor"/></svg>';
+$("glGia").innerHTML = '<svg width="13" height="16" viewBox="0 0 13 16">' +
+  '<path d="M6.5 0 L12.5 6.4 H9.1 V16 H3.9 V6.4 H0.5 Z" fill="currentColor"/></svg>';
+
+document.addEventListener("keydown", function(e){
+  if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)){ if (e.key === "Escape") e.target.blur(); return; }
+  var k = e.key.toLowerCase();
+  if ((e.ctrlKey||e.metaKey) && k === "z"){ e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if ((e.ctrlKey||e.metaKey) && k === "y"){ e.preventDefault(); redo(); return; }
+  if ((e.ctrlKey||e.metaKey) && k === "s"){
+    e.preventDefault();
+    if (FS.dir) fsSave().then(function(ok){ if (ok) toast("Opgeslagen in " + FS.dir.name + "."); });
+    else if (S.slot) saveSlot(S.slot);
+    else $("bProj").click();
+    return;
+  }
+  if (e.code === "Space"){ spaceDown = true; canvas.style.cursor = "grab"; e.preventDefault(); return; }
+  var map = {"v":"select","1":"capillary","2":"giant","3":"dollar","4":"hash",
+             "5":"triangle","6":"measure","7":"scale"};
+  if (map[k]){ setTool(map[k]); return; }
+  if (k === "delete" || k === "backspace"){
+    var r = cur();
+    if (r && S.sel){ snap(); r.ann = r.ann.filter(function(a){ return a !== S.sel; }); S.sel = null;
+      draw(); syncPanel(); renderTree(); }
+    return;
+  }
+  if (k === "g" && S.sel && S.sel.type === "capillary"){ snap(); S.sel.giant = !S.sel.giant; draw(); return; }
+  if (k === "r" && S.sel && S.sel.type === "capillary"){ snap(); S.sel.dir = (S.sel.dir+45)%360; draw(); return; }
+  if (k === "f"){ fit(); return; }
+  if (k === "escape"){ S.sel = null; draw(); syncPanel(); return; }
+  if (e.key === "PageDown" || k === "arrowright") select(S.idx+1);
+  if (e.key === "PageUp"   || k === "arrowleft")  select(S.idx-1);
+});
+document.addEventListener("keyup", function(e){
+  if (e.code === "Space"){ spaceDown = false; canvas.style.cursor = S.tool === "select" ? "default" : "crosshair"; }
+});
+$("bPrev").onclick = function(){ select(S.idx-1); };
+$("bNext").onclick = function(){ select(S.idx+1); };
+$("scheme").onchange = function(){ S.scheme = this.value; draw(); };
+$("mSize").oninput = function(){ S.markerScale = this.value/100; $("szVal").textContent = this.value + "%"; draw(); };
+
+/* ================= files in ================= */
+$("fFiles").onchange = function(){ addFiles(this.files); this.value = ""; };
+$("fDir").onchange   = function(){ addFiles(this.files); this.value = ""; };
+function applyProject(data){
+  S.pending = {};
+  (data.images||[]).forEach(function(o){ S.pending[o.path] = o; S.pending[o.name] = o; });
+  var hit = 0;
+  S.images.forEach(function(r){
+    var o = S.pending[r.path] || S.pending[r.name];
+    if (o){ r.ann = o.ann||[]; r.pxPerMm = o.pxPerMm||null; r.calib = o.calib||null;
+            if (o.meta) r.meta = o.meta; r.undo = []; r.redo = []; hit++; }
+  });
+  S.sel = null; draw(); syncPanel(); renderTree();
+  return hit;
+}
+$("fProj").onchange  = function(){
+  var f = this.files[0]; if (!f) return;
+  var fr = new FileReader();
+  fr.onload = function(){
+    try {
+      var hit = applyProject(JSON.parse(fr.result));
+      toast(hit ? hit + " foto's gekoppeld." : "Project geladen. Laad nu je fotomap.");
+    } catch(err){ toast("Kon het projectbestand niet lezen."); }
+  };
+  fr.readAsText(f); this.value = "";
+};
+
+/* ================= in-app project store ================= */
+var STORE = "capann:", PKEY = STORE + "p:", dirty = false;
+var HASSTORE = (function(){
+  try { localStorage.setItem(STORE+"t","1"); localStorage.removeItem(STORE+"t"); return true; }
+  catch(e){ return false; }
+})();
+function touch(){ dirty = true; }
+function slotNames(){
+  var out = [];
+  if (!HASSTORE) return out;
+  for (var i=0;i<localStorage.length;i++){
+    var k = localStorage.key(i);
+    if (k && k.indexOf(PKEY) === 0) out.push(k.slice(PKEY.length));
+  }
+  return out.sort(natCmp);
+}
+function saveSlot(name, quiet){
+  if (!HASSTORE) return toast("Deze browser blokkeert opslag. Gebruik Opslaan als bestand.");
+  try {
+    localStorage.setItem(PKEY + name, projectJson());
+    localStorage.setItem(STORE + "last", name);
+    S.slot = name; dirty = false; markSaved();
+    if (!quiet) toast('Opgeslagen als "' + name + '".');
+  } catch(e){ toast("Opslag zit vol. Verwijder een oud project of sla op als bestand."); }
+}
+function markSaved(){
+  var d = new Date(), p = function(n){ return (n<10?"0":"")+n; };
+  $("sSave").textContent = S.slot
+    ? 'Bewaard: ' + S.slot + ' · ' + p(d.getHours()) + ":" + p(d.getMinutes())
+    : "Niet opgeslagen";
+}
+function renderProjects(){
+  var box = $("pList"), names = slotNames();
+  if (!HASSTORE){
+    box.innerHTML = '<div class="empty">Deze browser blokkeert lokale opslag.<br>' +
+      'Open het bestand rechtstreeks in Chrome, of gebruik Opslaan als bestand.</div>';
+    return;
+  }
+  if (!names.length){ box.innerHTML = '<div class="empty">Nog niets opgeslagen in het programma.</div>'; return; }
+  box.innerHTML = "";
+  names.forEach(function(n){
+    var meta = {n:0, saved:""};
+    try { var d = JSON.parse(localStorage.getItem(PKEY+n));
+          meta.n = (d.images||[]).length; meta.saved = (d.saved||"").slice(0,16).replace("T"," "); } catch(e){}
+    var row = document.createElement("div");
+    row.className = "prow" + (n === S.slot ? " on" : "");
+    row.innerHTML = '<div><div class="pn">' + esc(n) + '</div>' +
+      '<div class="pm">' + meta.n + " foto's · " + esc(meta.saved) + '</div></div>' +
+      '<div class="sp"><button class="btn" data-a="open">Openen</button>' +
+      '<button class="btn" data-a="del">Verwijderen</button></div>';
+    row.querySelector('[data-a=open]').onclick = function(){
+      try {
+        var hit = applyProject(JSON.parse(localStorage.getItem(PKEY+n)));
+        S.slot = n; dirty = false; markSaved();
+        localStorage.setItem(STORE+"last", n);
+        $("pName").value = n; renderProjects();
+        toast(hit ? hit + " foto's gekoppeld." : 'Project "' + n + '" geladen. Laad nu je fotomap.');
+      } catch(e){ toast("Kon dit project niet lezen."); }
+    };
+    row.querySelector('[data-a=del]').onclick = function(){
+      if (row.dataset.confirm !== "1"){
+        row.dataset.confirm = "1";
+        this.textContent = "Zeker?";
+        setTimeout(function(){ row.dataset.confirm = ""; if (row.querySelector('[data-a=del]')) row.querySelector('[data-a=del]').textContent = "Verwijderen"; }, 3000);
+        return;
+      }
+      localStorage.removeItem(PKEY+n);
+      if (S.slot === n){ S.slot = null; markSaved(); }
+      renderProjects();
+    };
+    box.appendChild(row);
+  });
+}
+$("bProj").onclick = function(){
+  $("pName").value = S.slot || suggestName();
+  renderProjects(); $("veil3").classList.add("on");
+};
+function suggestName(){
+  var r = cur();
+  return r && r.meta.patient ? r.meta.patient : "project";
+}
+$("pClose").onclick = function(){ $("veil3").classList.remove("on"); };
+$("pSave").onclick = function(){
+  var n = $("pName").value.trim();
+  if (!n) return toast("Geef het project een naam.");
+  if (!S.images.length) return toast("Nog geen foto's geladen.");
+  saveSlot(n); renderProjects();
+};
+$("veil3").addEventListener("keydown", function(e){ if (e.key === "Escape") $("pClose").click(); });
+
+setInterval(function(){
+  if (!dirty) return;
+  if (FS.dir) fsSave();
+  else if (S.slot && HASSTORE) saveSlot(S.slot, true);
+}, 4000);
+window.addEventListener("beforeunload", function(e){
+  if (dirty && S.images.length){ e.preventDefault(); e.returnValue = ""; }
+});
+var stage = $("stage");
+["dragenter","dragover"].forEach(function(ev){
+  stage.addEventListener(ev, function(e){ e.preventDefault();
+    $("drop").classList.add("hot"); $("drop").style.display = "flex"; });
+});
+["dragleave","drop"].forEach(function(ev){
+  stage.addEventListener(ev, function(e){ e.preventDefault(); $("drop").classList.remove("hot");
+    if (S.images.length) $("drop").style.display = "none"; });
+});
+stage.addEventListener("drop", function(e){ if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files); });
+
+/* ================= zip ================= */
+function crc32(u8){
+  var t = crc32.t;
+  if (!t){ t = crc32.t = new Int32Array(256);
+    for (var n=0;n<256;n++){ var c=n; for (var k=0;k<8;k++) c = c&1 ? 0xEDB88320^(c>>>1) : c>>>1; t[n]=c; } }
+  var c2 = -1;
+  for (var i=0;i<u8.length;i++) c2 = (c2>>>8) ^ t[(c2^u8[i]) & 0xFF];
+  return (c2 ^ -1) >>> 0;
+}
+function makeZip(files){
+  var parts = [], central = [], offset = 0, enc = new TextEncoder();
+  files.forEach(function(f){
+    var nb = enc.encode(f.name), crc = crc32(f.data), len = f.data.length;
+    var lh = new Uint8Array(30+nb.length), d = new DataView(lh.buffer);
+    d.setUint32(0,0x04034b50,true); d.setUint16(4,20,true); d.setUint16(6,0x0800,true);
+    d.setUint16(8,0,true); d.setUint16(10,0,true); d.setUint16(12,0x2821,true);
+    d.setUint32(14,crc,true); d.setUint32(18,len,true); d.setUint32(22,len,true);
+    d.setUint16(26,nb.length,true); d.setUint16(28,0,true);
+    lh.set(nb,30); parts.push(lh, f.data);
+    var ch = new Uint8Array(46+nb.length), c = new DataView(ch.buffer);
+    c.setUint32(0,0x02014b50,true); c.setUint16(4,20,true); c.setUint16(6,20,true);
+    c.setUint16(8,0x0800,true); c.setUint16(10,0,true);
+    c.setUint16(12,0,true); c.setUint16(14,0x2821,true);
+    c.setUint32(16,crc,true); c.setUint32(20,len,true); c.setUint32(24,len,true);
+    c.setUint16(28,nb.length,true); c.setUint32(42,offset,true);
+    ch.set(nb,46); central.push(ch);
+    offset += lh.length + len;
+  });
+  var cd = central.reduce(function(a,b){ return a+b.length; },0);
+  var e = new Uint8Array(22), d3 = new DataView(e.buffer);
+  d3.setUint32(0,0x06054b50,true); d3.setUint16(8,files.length,true);
+  d3.setUint16(10,files.length,true); d3.setUint32(12,cd,true); d3.setUint32(16,offset,true);
+  return new Blob(parts.concat(central,[e]), {type:"application/zip"});
+}
+function b64ToBytes(b64){
+  var bin = atob(b64), a = new Uint8Array(bin.length);
+  for (var i=0;i<bin.length;i++) a[i] = bin.charCodeAt(i);
+  return a;
+}
+function bytes(str){ return new TextEncoder().encode(str); }
+
+/* ================= export ================= */
+function dl(name, blob){
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 6000);
+}
+function stamp(){
+  var d = new Date(), p = function(n){ return (n<10?"0":"")+n; };
+  return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"_"+p(d.getHours())+p(d.getMinutes());
+}
+function folderPath(r){                       // export: alleen patiënt / visit
+  var m = r.meta;
+  return [groupLabel(m.patient), m.visit ? "Visit " + m.visit : "Zonder visit"].join("/");
+}
+function leafFile(r){                         // hand, vinger en foto zitten in de bestandsnaam
+  var stem = r.name.replace(/\.[^.]+$/,"");
+  var m = r.meta, code = (m.hand||"") + (m.finger||"") + (m.photo === "2" ? "B" : m.photo === "1" ? "A" : "");
+  if (code && stem.toUpperCase().indexOf(code.toUpperCase()) < 0) stem += "_" + code;
+  return stem + ".png";
+}
+function renderPng(i){
+  var keepIdx = S.idx, keepCtx = ctx, keepZ = S.zoom, keepX = S.panX, keepY = S.panY, keepSel = S.sel;
+  S.idx = i;
+  var r = S.images[i];
+  var off = document.createElement("canvas");
+  off.width = r.w; off.height = r.h;
+  ctx = off.getContext("2d");
+  S.zoom = 1; S.panX = 0; S.panY = 0; S.sel = null;
+  ctx.drawImage(r.img, 0, 0);
+  r.ann.forEach(function(a){ drawAnn(a, false); });
+  var url = off.toDataURL("image/png");
+  ctx = keepCtx; S.idx = keepIdx; S.zoom = keepZ; S.panX = keepX; S.panY = keepY; S.sel = keepSel;
+  return url;
+}
+function csvPair(){
+  var q = function(v){ v = (v==null?"":String(v)); return /[",;\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
+  var img = [["tool_version","patient","visit","hand","finger","photo","file","px_per_mm","image_width_mm",
+              "n_capillaries","capillary_density_per_mm","n_dilations","n_giants",
+              "n_abnormal_shape_1","n_abnormal_shape_2","n_microhaemorrhages",
+              "n_measurements","mean_diameter_um","min_diameter_um","max_diameter_um"].join(",")];
+  var mes = [["tool_version","patient","visit","hand","finger","photo","file","measurement_id",
+              "diameter_um","diameter_px","class","x1","y1","x2","y2"].join(",")];
+  S.images.forEach(function(r){
+    var s = stats(r), m = r.meta;
+    var base = [APP_VERSION,m.patient,m.visit,m.hand,m.finger,m.photo,r.name];
+    img.push(base.concat([
+      r.pxPerMm ? fmt(r.pxPerMm,1) : "", r.pxPerMm ? fmt(r.w/r.pxPerMm,3) : "",
+      s.cap, s.density != null ? fmt(s.density,2) : "", s.dil, s.giant, s.dollar, s.hash, s.hem,
+      s.meas.length, s.mean != null ? fmt(s.mean,2) : "",
+      s.meas.length ? fmt(Math.min.apply(null,s.meas),2) : "",
+      s.meas.length ? fmt(Math.max.apply(null,s.meas),2) : ""
+    ]).map(q).join(","));
+    r.ann.forEach(function(a){
+      if (a.type !== "measure") return;
+      var cls = a.um == null ? "" : (a.um >= GIANT ? "giant" : (a.um >= DILAT ? "dilated" : "normal"));
+      mes.push(base.concat([a.id, a.um != null ? fmt(a.um,2) : "",
+        fmt(Math.hypot(a.x2-a.x1,a.y2-a.y1),1), cls,
+        fmt(a.x1,1), fmt(a.y1,1), fmt(a.x2,1), fmt(a.y2,1)]).map(q).join(","));
+    });
+  });
+  return {image: "\ufeff"+img.join("\n"), meas: "\ufeff"+mes.join("\n")};
+}
+function projectJson(){
+  return JSON.stringify({
+    format:"capillaroscopy-annotator", version:2, app_version:APP_VERSION,
+    saved:new Date().toISOString(),
+    thresholds:{giant_um:GIANT, dilated_um:DILAT},
+    images: S.images.map(function(r){
+      return {name:r.name, path:r.path, folder:folderPath(r), width:r.w, height:r.h,
+              pxPerMm:r.pxPerMm, calib:r.calib, meta:r.meta, ann:r.ann};
+    })
+  }, null, 1);
+}
+function saveProject(){
+  if (!S.images.length) return toast("Niets om op te slaan.");
+  dl("capillaroscopie_project_" + stamp() + ".json",
+     new Blob([projectJson()], {type:"application/json"}));
+  toast("Project opgeslagen.");
+}
+$("bSave").onclick = saveProject;
+
+$("bCsv").onclick = function(){
+  if (!S.images.length) return toast("Niets om te exporteren.");
+  var c = csvPair();
+  dl("capillaroscopy_image_level_" + stamp() + ".csv", new Blob([c.image], {type:"text/csv"}));
+  dl("capillaroscopy_measurements_" + stamp() + ".csv", new Blob([c.meas], {type:"text/csv"}));
+  toast("Twee CSV-bestanden geëxporteerd.");
+};
+
+$("bPng").onclick = function(){
+  var r = cur(); if (!r || !r.ready) return toast("Geen foto geselecteerd.");
+  var url = renderPng(S.idx);
+  dl(leafFile(r), new Blob([b64ToBytes(url.split(",")[1])], {type:"image/png"}));
+};
+
+$("bZip").onclick = function(){
+  if (!S.images.length) return toast("Niets om op te slaan.");
+  var files = [], used = {}, i = 0;
+  var step = function(){
+    if (i >= S.images.length){
+      var c = csvPair();
+      files.push({name:"image_level.csv",   data:bytes(c.image)});
+      files.push({name:"measurements.csv",  data:bytes(c.meas)});
+      files.push({name:"project.json",      data:bytes(projectJson())});
+      dl("capillaroscopie_" + stamp() + ".zip", makeZip(files));
+      toast("ZIP klaar: " + (files.length-3) + " foto's in mapstructuur.");
+      return;
+    }
+    var r = S.images[i];
+    if (r.ready){
+      var name = folderPath(r) + "/" + leafFile(r);
+      if (used[name]) name = name.replace(/\.png$/, " (" + (++used[name]) + ").png");
+      else used[name] = 1;
+      files.push({name:name, data:b64ToBytes(renderPng(i).split(",")[1])});
+    }
+    i++;
+    toast("Foto's verwerken " + i + " / " + S.images.length);
+    setTimeout(step, 0);
+  };
+  toast("Export gestart…");
+  setTimeout(step, 30);
+};
+
+/* ================= excel block ================= */
+var XROWS = [
+  {k:"N° of capillaries",     f:function(s){ return s.cap; }},
+  {k:"N° of dilations",       f:function(s){ return s.dil; }},
+  {k:"N° of giants",          f:function(s){ return s.giant; }},
+  {k:"N° of abnormal shapes", f:function(s){ return s.hash + s.dollar; }},
+  {k:"N° microhaemorrhages",  f:function(s){ return s.hem; }}
+];
+function xBuild(){
+  var p = $("xPat").value, v = $("xVis").value;
+  return XROWS.map(function(row){
+    var cells = [];
+    ["L","R"].forEach(function(h){
+      ["2","3","4","5"].forEach(function(f){
+        ["1","2"].forEach(function(ph){
+          var one = S.images.filter(function(r){
+            return r.meta.patient === p && r.meta.visit === v &&
+                   r.meta.hand === h && r.meta.finger === f && r.meta.photo === ph;
+          })[0];
+          cells.push(one ? String(row.f(stats(one))) : "");
+        });
+      });
+    });
+    return {label:row.k, cells:cells};
+  });
+}
+function xRender(){
+  var data = xBuild();
+  var h = '<table class="xt"><tr><th></th><th colspan="8">Left Hand</th><th colspan="8">Right Hand</th></tr>' +
+          '<tr><th></th>' + ["2nd","3rd","4th","5th","2nd","3rd","4th","5th"].map(function(f){
+            return '<th colspan="2">' + f + '</th>'; }).join("") + '</tr>' +
+          '<tr><th></th>' + new Array(9).join('<th>1</th><th>2</th>') + '</tr>';
+  data.forEach(function(r){
+    h += '<tr><td class="lbl">' + esc(r.label) + '</td>' +
+         r.cells.map(function(c){ return '<td class="val">' + (c === "" ? "·" : esc(c)) + '</td>'; }).join("") + '</tr>';
+  });
+  $("xPrev").innerHTML = h + "</table>";
+}
+function xTsv(){
+  return xBuild().map(function(r){ return r.cells.join("\t"); }).join("\n");
+}
+function fillSelect(el, values, want){
+  el.innerHTML = values.map(function(v){ return '<option>' + esc(v) + '</option>'; }).join("");
+  if (want && values.indexOf(want) >= 0) el.value = want;
+}
+$("bXls").onclick = function(){
+  if (!S.images.length) return toast("Nog geen foto's geladen.");
+  var pats = [], viss = ["1","2"];               // visit 1 en 2 staan er altijd
+  S.images.forEach(function(r){
+    if (r.meta.patient && pats.indexOf(r.meta.patient) < 0) pats.push(r.meta.patient);
+    if (r.meta.visit && viss.indexOf(r.meta.visit) < 0) viss.push(r.meta.visit);
+  });
+  if (!pats.length) pats = [""];
+  pats.sort(natCmp); viss.sort(natCmp);
+  var r0 = cur();
+  fillSelect($("xPat"), pats, r0 && r0.meta.patient);
+  fillSelect($("xVis"), viss, r0 && r0.meta.visit);
+  $("xPatWrap").style.display = pats.length > 1 ? "" : "none";
+  xRender();
+  $("veil2").classList.add("on");
+};
+["xPat","xVis"].forEach(function(id){ $(id).onchange = xRender; });
+$("xClose").onclick = function(){ $("veil2").classList.remove("on"); };
+$("veil2").addEventListener("keydown", function(e){ if (e.key === "Escape") $("xClose").click(); });
+$("xCopy").onclick = function(){
+  var text = xTsv();
+  var fallback = function(){
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch(e){}
+    ta.remove();
+    toast(ok ? "Blok gekopieerd. Plak in Left Hand, 2nd." : "Kopiëren lukte niet; selecteer het blok handmatig.");
+  };
+  if (navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(text).then(function(){
+      toast("Blok gekopieerd. Plak in Left Hand, 2nd.");
+    }, fallback);
+  } else fallback();
+};
+
+/* ================= gekoppelde map (File System Access) ================= */
+var FS = { on: !!(window.showDirectoryPicker && window.isSecureContext), dir:null, saved:null, busy:false };
+
+function idbOpen(){
+  return new Promise(function(res, rej){
+    var r = indexedDB.open("capann", 1);
+    r.onupgradeneeded = function(){ r.result.createObjectStore("kv"); };
+    r.onsuccess = function(){ res(r.result); };
+    r.onerror = function(){ rej(r.error); };
+  });
+}
+function idbPut(k, v){
+  return idbOpen().then(function(db){
+    return new Promise(function(res, rej){
+      var t = db.transaction("kv","readwrite");
+      t.objectStore("kv").put(v, k);
+      t.oncomplete = function(){ res(); }; t.onerror = function(){ rej(t.error); };
+    });
+  });
+}
+function idbGet(k){
+  return idbOpen().then(function(db){
+    return new Promise(function(res, rej){
+      var t = db.transaction("kv","readonly"), q = t.objectStore("kv").get(k);
+      q.onsuccess = function(){ res(q.result); }; q.onerror = function(){ rej(q.error); };
+    });
+  });
+}
+
+async function collect(dir, prefix, out){
+  for await (var entry of dir.values()){
+    var name = entry.name;
+    if (name.charAt(0) === "." ) continue;
+    if (entry.kind === "directory"){
+      if (name === "annotated") continue;
+      await collect(entry, prefix + name + "/", out);
+    } else if (/\.(jpe?g|png|tiff?|bmp|webp)$/i.test(name)){
+      var f = await entry.getFile();
+      f._path = prefix + name;
+      out.push(f);
+    }
+  }
+}
+async function useDir(dir){
+  FS.dir = dir;
+  updateLinkBtn();
+  try {                                   // een bestaand project in de map gaat vóór
+    var fh = await dir.getFileHandle("project.json");
+    var txt = await (await fh.getFile()).text();
+    applyProject(JSON.parse(txt));
+  } catch(e){}
+  var files = [];
+  await collect(dir, "", files);
+  if (!files.length){ toast("Geen foto's gevonden in " + dir.name + "."); return; }
+  addFiles(files);
+  toast(dir.name + " gekoppeld · " + files.length + " foto's.");
+}
+async function fsSave(){
+  if (!FS.dir || FS.busy) return false;
+  FS.busy = true;
+  try {
+    var fh = await FS.dir.getFileHandle("project.json", {create:true});
+    var w = await fh.createWritable();
+    await w.write(projectJson()); await w.close();
+    dirty = false; S.slot = null; markSavedDir();
+    return true;
+  } catch(e){ toast("Kon niet schrijven in de map. Controleer de rechten."); return false; }
+  finally { FS.busy = false; }
+}
+function markSavedDir(){
+  var d = new Date(), p = function(n){ return (n<10?"0":"")+n; };
+  $("sSave").textContent = "Bewaard in " + FS.dir.name + " · " + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+function updateLinkBtn(){
+  var b = $("bLink");
+  if (!FS.on){ b.style.display = "none"; return; }
+  b.style.display = "";
+  $("wDir").style.display = FS.dir ? "none" : "";
+  b.textContent = FS.dir ? ("Map: " + FS.dir.name)
+                 : (FS.saved ? "Map koppelen (" + FS.saved.name + ")" : "Map koppelen");
+  b.className = FS.dir ? "btn" : "btn primary";
+}
+$("bLink").onclick = async function(){
+  try {
+    if (!FS.dir && FS.saved){                       // vorige map hergebruiken
+      var perm = await FS.saved.requestPermission({mode:"readwrite"});
+      if (perm === "granted"){ await useDir(FS.saved); return; }
+    }
+    var dir = await window.showDirectoryPicker({mode:"readwrite"});
+    await idbPut("dir", dir);
+    FS.saved = dir;
+    await useDir(dir);
+  } catch(e){ /* gebruiker annuleerde */ }
+};
+
+/* ================= over ================= */
+$("verTag").textContent = "v" + APP_VERSION;
+$("aboutVer").textContent = APP_VERSION;
+$("bAbout").onclick = function(){ $("veil4").classList.add("on"); };
+$("aboutClose").onclick = function(){ $("veil4").classList.remove("on"); };
+$("veil4").addEventListener("keydown", function(e){ if (e.key === "Escape") $("aboutClose").click(); });
+
+/* ================= boot ================= */
+window.addEventListener("resize", resize);
+resize(); setTool("capillary"); syncPanel(); renderTree();
+updateLinkBtn();
+if (FS.on){
+  idbGet("dir").then(function(dir){
+    if (!dir) return;
+    FS.saved = dir; updateLinkBtn();
+    return dir.queryPermission({mode:"readwrite"}).then(function(perm){
+      if (perm === "granted") return useDir(dir);
+      setTimeout(function(){ toast('Klik "Map koppelen (' + dir.name + ')" om verder te werken.'); }, 500);
+    });
+  }).catch(function(){});
+}
+if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0){
+  navigator.serviceWorker.register("sw.js").catch(function(){});
+}
+if (HASSTORE){
+  var last = localStorage.getItem(STORE + "last");
+  if (last && localStorage.getItem(PKEY + last)){
+    try {
+      applyProject(JSON.parse(localStorage.getItem(PKEY + last)));
+      S.slot = last; markSaved();
+      setTimeout(function(){ toast('Project "' + last + '" staat klaar. Laad je fotomap.'); }, 400);
+    } catch(e){}
+  }
+}
+})();
+</script>
