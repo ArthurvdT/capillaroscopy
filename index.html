@@ -160,40 +160,40 @@
 
 <div class="app">
   <div class="top">
-    <div class="brand"><b>Capillaroscopie annotator</b>
-      <span id="verTag">v1.0</span>
+    <div class="brand"><b>Capillaroscopy Annotator</b>
+      <span id="verTag">v1.1</span>
       <button class="btn ghost" id="bAbout" style="padding:1px 7px;font-size:11px">?</button></div>
     <div class="sep"></div>
-    <label class="file btn">Foto's laden<input type="file" id="fFiles" multiple accept="image/*"></label>
-    <label class="file btn" id="wDir">Map laden<input type="file" id="fDir" webkitdirectory directory multiple></label>
-    <button class="btn" id="bLink" style="display:none">Map koppelen</button>
+    <label class="file btn">Load images<input type="file" id="fFiles" multiple accept="image/*"></label>
+    <label class="file btn" id="wDir">Load folder<input type="file" id="fDir" webkitdirectory directory multiple></label>
+    <button class="btn" id="bLink" style="display:none">Link folder</button>
     <div class="sep"></div>
-    <button class="btn ghost" id="bProj">Projecten</button>
+    <button class="btn ghost" id="bProj">Projects</button>
     <div class="sep"></div>
     <button class="btn ghost" id="bCsv">CSV</button>
-    <button class="btn ghost" id="bXls">Excel-blok</button>
-    <button class="btn ghost" id="bPng">Deze foto</button>
-    <button class="btn primary" id="bZip">Alles opslaan (ZIP)</button>
+    <button class="btn ghost" id="bXls">Excel block</button>
+    <button class="btn ghost" id="bPng">This image</button>
+    <button class="btn primary" id="bZip">Save all (ZIP)</button>
     <div class="nav">
-      <button class="btn" id="bPrev" title="Vorige foto (Page Up)">‹</button>
+      <button class="btn" id="bPrev" title="Previous image (Page Up)">‹</button>
       <div class="counter" id="counter">0 / 0</div>
-      <button class="btn" id="bNext" title="Volgende foto (Page Down)">›</button>
+      <button class="btn" id="bNext" title="Next image (Page Down)">›</button>
     </div>
   </div>
 
   <div class="main">
     <div class="col left">
-      <div class="colhead"><span>Patiënten</span>
-        <button id="bExpand">alles openen</button><button id="bCollapse">sluiten</button></div>
+      <div class="colhead"><span>Patients</span>
+        <button id="bExpand">expand all</button><button id="bCollapse">collapse</button></div>
       <div class="scroll" id="tree">
-        <div class="empty">Nog geen foto's geladen.<br>Sleep ze hierheen of gebruik <b>Map laden</b>.</div>
+        <div class="empty">No images loaded yet.<br>Drop them here or use <b>Load folder</b>.</div>
       </div>
     </div>
 
     <div class="stage" id="stage">
       <canvas id="canvas"></canvas>
-      <div class="drop" id="drop">Sleep hier je capillaroscopiefoto's naartoe<br>
-        <span style="font-size:11px">of laad een volledige patiëntmap</span></div>
+      <div class="drop" id="drop">Drop your capillaroscopy images here<br>
+        <span style="font-size:11px">or load an entire patient folder</span></div>
       <div class="hud" id="hud" style="display:none">
         <div class="lbl" id="hudLbl">Diameter</div>
         <div class="big" id="hudVal">–</div>
@@ -204,76 +204,76 @@
     </div>
 
     <div class="col right">
-      <div class="colhead"><span>Gereedschap</span></div>
+      <div class="colhead"><span>Tools</span></div>
       <div class="tools">
-        <button class="tool" data-tool="select"><span class="gl">✥</span><span class="nm">Selecteren</span><span class="k">V</span></button>
-        <button class="tool on" data-tool="capillary"><span class="gl" id="glCap"></span><span class="nm">Capillair</span><span class="k">1</span></button>
+        <button class="tool" data-tool="select"><span class="gl">✥</span><span class="nm">Select</span><span class="k">V</span></button>
+        <button class="tool on" data-tool="capillary"><span class="gl" id="glCap"></span><span class="nm">Capillary</span><span class="k">1</span></button>
         <button class="tool" data-tool="giant"><span class="gl" id="glGia"></span><span class="nm">Giant ≥50 µm</span><span class="k">2</span></button>
-        <button class="tool" data-tool="dollar"><span class="gl">$</span><span class="nm">Abn. vorm 1</span><span class="k">3</span></button>
-        <button class="tool" data-tool="hash"><span class="gl" style="font-size:10px">#/$</span><span class="nm">Abn. vorm 2</span><span class="k">4</span></button>
-        <button class="tool" data-tool="triangle"><span class="gl">▲</span><span class="nm">Bloeding</span><span class="k">5</span></button>
-        <button class="tool" data-tool="measure"><span class="gl" style="color:#E8262A">|</span><span class="nm">Meten</span><span class="k">6</span></button>
-        <button class="tool wide" data-tool="scale"><span class="gl" style="color:var(--accent)">⊞</span><span class="nm">Schaal instellen (1 mm-grid)</span><span class="k">7</span></button>
+        <button class="tool" data-tool="dollar"><span class="gl">$</span><span class="nm">Abn. shape 1</span><span class="k">3</span></button>
+        <button class="tool" data-tool="hash"><span class="gl" style="font-size:10px">#/$</span><span class="nm">Abn. shape 2</span><span class="k">4</span></button>
+        <button class="tool" data-tool="triangle"><span class="gl">▲</span><span class="nm">Haemorrhage</span><span class="k">5</span></button>
+        <button class="tool" data-tool="measure"><span class="gl" style="color:#E8262A">|</span><span class="nm">Measure</span><span class="k">6</span></button>
+        <button class="tool wide" data-tool="scale"><span class="gl" style="color:var(--accent)">⊞</span><span class="nm">Set scale (1 mm grid)</span><span class="k">7</span></button>
       </div>
 
       <div class="block">
-        <h4>Schaal</h4>
-        <div class="scaleflag bad" id="scaleFlag">Niet gekalibreerd</div>
-        <button class="btn ghost" id="bScaleAll" style="width:100%;margin-top:7px">Schaal op alle foto's toepassen</button>
-        <div class="hint">Trek een lijn over één zijde van het 1 mm-vierkant. Kies daarna de eenheid: <b>mm</b>, niet µm.</div>
+        <h4>Scale</h4>
+        <div class="scaleflag bad" id="scaleFlag">Not calibrated</div>
+        <button class="btn ghost" id="bScaleAll" style="width:100%;margin-top:7px">Apply scale to all images</button>
+        <div class="hint">Drag a line along one side of the 1 mm square, then choose the unit: <b>mm</b>, not µm.</div>
       </div>
 
       <div class="block">
-        <h4>Deze foto</h4>
-        <div class="row"><span class="k">Capillairen</span><span class="v" id="cCap">0</span></div>
-        <div class="row"><span class="k">Dilataties (20–49 µm)</span><span class="v" id="cDil">0</span></div>
-        <div class="row"><span class="k">Giants (dikke pijl)</span><span class="v" id="cGia">0</span></div>
-        <div class="row"><span class="k">Abnormale vorm 1 ($)</span><span class="v" id="cDol">0</span></div>
-        <div class="row"><span class="k">Abnormale vorm 2 (#/$)</span><span class="v" id="cHas">0</span></div>
-        <div class="row"><span class="k">Bloedingen</span><span class="v" id="cHem">0</span></div>
+        <h4>This image</h4>
+        <div class="row"><span class="k">Capillaries</span><span class="v" id="cCap">0</span></div>
+        <div class="row"><span class="k">Dilations (20–49 µm)</span><span class="v" id="cDil">0</span></div>
+        <div class="row"><span class="k">Giants (thick arrow)</span><span class="v" id="cGia">0</span></div>
+        <div class="row"><span class="k">Abnormal shape 1 ($)</span><span class="v" id="cDol">0</span></div>
+        <div class="row"><span class="k">Abnormal shape 2 (#/$)</span><span class="v" id="cHas">0</span></div>
+        <div class="row"><span class="k">Haemorrhages</span><span class="v" id="cHem">0</span></div>
         <div class="row" style="border-top:1px solid var(--line);margin-top:5px;padding-top:6px">
-          <span class="k">Densiteit</span><span class="v" id="cDen">–</span></div>
-        <div class="row"><span class="k">Gem. diameter</span><span class="v" id="cMean">–</span></div>
+          <span class="k">Density</span><span class="v" id="cDen">–</span></div>
+        <div class="row"><span class="k">Mean diameter</span><span class="v" id="cMean">–</span></div>
       </div>
 
       <div class="block">
-        <h4>Identificatie</h4>
+        <h4>Identification</h4>
         <div class="grid2">
-          <label class="field"><span>Map / patiënt</span><input type="text" id="mPat" placeholder="GHA008"></label>
+          <label class="field"><span>Folder / patient</span><input type="text" id="mPat" placeholder="GHA008"></label>
           <label class="field"><span>Visit</span><input type="text" id="mVis" placeholder="1"></label>
           <label class="field"><span>Hand</span>
-            <select id="mHand"><option value="">–</option><option value="R">Rechts</option><option value="L">Links</option></select></label>
-          <label class="field"><span>Vinger</span>
+            <select id="mHand"><option value="">–</option><option value="R">Right</option><option value="L">Left</option></select></label>
+          <label class="field"><span>Finger</span>
             <select id="mFin"><option value="">–</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label>
-          <label class="field" style="grid-column:1/-1"><span>Foto</span><input type="text" id="mPh" placeholder="1"></label>
+          <label class="field" style="grid-column:1/-1"><span>Image</span><input type="text" id="mPh" placeholder="1"></label>
         </div>
       </div>
 
       <div class="block">
-        <h4>16 foto's ineens indelen</h4>
+        <h4>Assign 16 images at once</h4>
         <div class="grid2">
-          <label class="field"><span>Map / patiënt</span><input type="text" id="aPat" placeholder="GHA008"></label>
+          <label class="field"><span>Folder / patient</span><input type="text" id="aPat" placeholder="GHA008"></label>
           <label class="field"><span>Visit</span><input type="text" id="aVis" placeholder="1"></label>
-          <label class="field" style="grid-column:1/-1"><span>Volgorde</span>
+          <label class="field" style="grid-column:1/-1"><span>Order</span>
             <select id="aOrder">
-              <option value="RL">Rechts eerst, dan links</option>
-              <option value="LR">Links eerst, dan rechts</option>
+              <option value="RL">Right hand first, then left</option>
+              <option value="LR">Left hand first, then right</option>
             </select></label>
         </div>
-        <button class="btn ghost" id="bAuto" style="width:100%;margin-top:7px">Indelen vanaf huidige foto</button>
-        <div class="hint">Vult vanaf de geselecteerde foto 16 stuks in: per hand vinger 2 t/m 5, telkens foto 1 en 2.</div>
+        <button class="btn ghost" id="bAuto" style="width:100%;margin-top:7px">Assign from current image</button>
+        <div class="hint">Fills 16 images from the selected one: per hand, fingers 2 to 5, image 1 and 2 each.</div>
       </div>
 
       <div class="block">
-        <h4>Weergave</h4>
-        <div class="row"><span class="k">Stijl</span>
+        <h4>Display</h4>
+        <div class="row"><span class="k">Style</span>
           <select id="scheme" style="width:126px">
-            <option value="black">Zwart (print)</option>
-            <option value="contrast">Contrast (kleur)</option>
+            <option value="black">Black (print)</option>
+            <option value="contrast">Contrast (colour)</option>
           </select></div>
-        <div class="row"><span class="k">Markergrootte</span><span class="v" id="szVal">100%</span></div>
+        <div class="row"><span class="k">Marker size</span><span class="v" id="szVal">100%</span></div>
         <input type="range" id="mSize" min="30" max="220" value="100">
-        <div class="hint">De originele foto wordt nooit gewijzigd. Annotaties zitten in een aparte laag.</div>
+        <div class="hint">The original image is never modified. Annotations live in a separate layer.</div>
       </div>
     </div>
   </div>
@@ -281,75 +281,75 @@
   <div class="status">
     <span>Zoom <b id="sZoom">100%</b></span>
     <span>Cursor <b id="sPos">–</b></span>
-    <span id="sSel">Niets geselecteerd</span>
-    <span id="sSave">Niet opgeslagen</span>
-    <span class="right">Scroll = zoomen · spatie of rechtermuisknop = pannen · Ctrl+Z · Del · G = giant · R = draaien</span>
+    <span id="sSel">Nothing selected</span>
+    <span id="sSave">Not saved</span>
+    <span class="right">Scroll = zoom · space or right mouse = pan · Ctrl+Z · Del · G = giant · R = rotate</span>
   </div>
 </div>
 
 <div class="veil" id="veil">
   <div class="modal">
-    <h3>Schaal instellen</h3>
-    <p>Je trok een lijn over het grid. Welke afstand is dat in werkelijkheid?</p>
+    <h3>Set scale</h3>
+    <p>You drew a line across the grid. What real distance does it represent?</p>
     <div class="grid2">
-      <label class="field"><span>Afstand</span><input type="number" id="dVal" value="1" step="any"></label>
-      <label class="field"><span>Eenheid</span>
+      <label class="field"><span>Distance</span><input type="number" id="dVal" value="1" step="any"></label>
+      <label class="field"><span>Unit</span>
         <select id="dUnit"><option value="1000">mm</option><option value="1">µm</option></select></label>
     </div>
     <div class="scaleflag ok" id="dPrev" style="margin-top:10px">–</div>
     <div class="acts">
-      <button class="btn ghost" id="dCancel">Annuleren</button>
-      <button class="btn primary" id="dOk">Toepassen</button>
+      <button class="btn ghost" id="dCancel">Cancel</button>
+      <button class="btn primary" id="dOk">Apply</button>
     </div>
   </div>
 </div>
 <div class="veil" id="veil4">
   <div class="modal" style="width:470px">
     <h3>Nailfold Capillaroscopy Annotator</h3>
-    <p><b>Versie <span id="aboutVer"></span></b><br>
-       Ontwikkeld door Arthur Vandertol, Universiteit Gent.<br>
-       Onder supervisie van prof. dr. Vanessa Smith.</p>
+    <p><b>Version <span id="aboutVer"></span></b><br>
+       Developed by Arthur Vandertol, Ghent University.<br>
+       Under the supervision of Prof. Dr. Vanessa Smith.</p>
     <p style="border-top:1px solid var(--line);padding-top:11px">
-       <b>Research use only.</b> Deze software is bedoeld voor onderzoek en onderwijs.
-       Ze is geen medisch hulpmiddel en mag niet worden gebruikt voor diagnose of
-       klinische besluitvorming.</p>
-    <p><b>Privacy.</b> Alle beeldverwerking gebeurt lokaal in uw browser. Er worden geen
-       beelden of gegevens naar een server verzonden.</p>
-    <p style="font-size:11px;color:var(--dimmer)">Vermeld bij publicatie de versie die u gebruikte.
-       Het versienummer staat in elke CSV- en projectexport.</p>
-    <div class="acts"><button class="btn primary" id="aboutClose">Sluiten</button></div>
+       <b>Research use only.</b> This software is intended for research and teaching.
+       It is not a medical device and must not be used for diagnosis or clinical
+       decision-making.</p>
+    <p><b>Privacy.</b> All image processing happens locally in your browser. No images
+       or data are sent to any server.</p>
+    <p style="font-size:11px;color:var(--dimmer)">When publishing, cite the version you used.
+       The version number is included in every CSV and project export.</p>
+    <div class="acts"><button class="btn primary" id="aboutClose">Close</button></div>
   </div>
 </div>
 <div class="veil" id="veil3">
   <div class="modal" style="width:580px">
-    <h3>Projecten</h3>
-    <p>Opgeslagen in het programma zelf, op deze computer. Je foto's blijven waar ze staan: laad de map
-       opnieuw en het project koppelt zichzelf terug aan de juiste foto's.</p>
+    <h3>Projects</h3>
+    <p>Stored inside the tool, on this computer. Your images stay where they are: load the
+       folder again and the project reattaches itself to the right images.</p>
     <div style="display:flex;gap:8px;align-items:flex-end">
-      <label class="field" style="flex:1"><span>Naam</span><input type="text" id="pName" placeholder="GHA008"></label>
-      <button class="btn primary" id="pSave">Opslaan in programma</button>
+      <label class="field" style="flex:1"><span>Name</span><input type="text" id="pName" placeholder="GHA008"></label>
+      <button class="btn primary" id="pSave">Save in tool</button>
     </div>
     <div id="pList" style="margin-top:13px;max-height:236px;overflow:auto"></div>
     <div style="display:flex;gap:8px;margin-top:12px;border-top:1px solid var(--line);padding-top:12px">
-      <label class="file btn ghost">Openen uit bestand<input type="file" id="fProj" accept=".json"></label>
-      <button class="btn ghost" id="bSave">Opslaan als bestand (.json)</button>
+      <label class="file btn ghost">Open from file<input type="file" id="fProj" accept=".json"></label>
+      <button class="btn ghost" id="bSave">Save as file (.json)</button>
     </div>
-    <div class="acts"><button class="btn ghost" id="pClose">Sluiten</button></div>
+    <div class="acts"><button class="btn ghost" id="pClose">Close</button></div>
   </div>
 </div>
 <div class="veil" id="veil2">
   <div class="modal" style="width:660px">
-    <h3>Telling voor Excel</h3>
-    <p>Eén blok per visit: 5 rijen, 16 kolommen, één kolom per foto. Plak het in de cel van
-       <b>N° of capillaries</b> onder <b>Left Hand, 2nd</b>, eerste kolom.</p>
+    <h3>Counts for Excel</h3>
+    <p>One block per visit: 5 rows, 16 columns, one column per image. Paste it into the
+       <b>N° of capillaries</b> cell under <b>Left Hand, 2nd</b>, first column.</p>
     <div style="display:flex;gap:8px;align-items:flex-end">
-      <label class="field" id="xPatWrap" style="flex:1"><span>Map / patiënt</span><select id="xPat"></select></label>
+      <label class="field" id="xPatWrap" style="flex:1"><span>Folder / patient</span><select id="xPat"></select></label>
       <label class="field" style="width:180px"><span>Visit</span><select id="xVis"></select></label>
     </div>
     <div id="xPrev" style="overflow:auto;margin-top:12px;max-height:270px"></div>
     <div class="acts">
-      <button class="btn ghost" id="xClose">Sluiten</button>
-      <button class="btn primary" id="xCopy">Kopieer blok</button>
+      <button class="btn ghost" id="xClose">Close</button>
+      <button class="btn primary" id="xCopy">Copy block</button>
     </div>
   </div>
 </div>
@@ -367,7 +367,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null, slot: null
 };
-var APP_VERSION = "1.0";
+var APP_VERSION = "1.1";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -402,8 +402,8 @@ function folderOf(path){
   return "";
 }
 function groupLabel(p){
-  if (!p) return "Zonder map";
-  return /^\d+$/.test(p) ? "Patiënt " + pad3(p) : p;
+  if (!p) return "Unassigned folder";
+  return /^\d+$/.test(p) ? "Patient " + pad3(p) : p;
 }
 function parseMeta(path){
   var s = path || "", base = s.split("/").pop(), m = {patient:"",visit:"",hand:"",finger:"",photo:""}, r;
@@ -487,10 +487,10 @@ function keyOf(r){
   var m = r.meta;
   return {
     p: groupLabel(m.patient),
-    v: m.visit   ? "Visit " + m.visit           : "Zonder visit",
-    h: m.hand === "R" ? "Rechts" : m.hand === "L" ? "Links" : "Zonder hand",
-    f: m.finger  ? "Vinger " + m.finger         : "Zonder vinger",
-    leaf: m.photo ? "Foto " + m.photo : r.name
+    v: m.visit   ? "Visit " + m.visit           : "No visit",
+    h: m.hand === "R" ? "Right hand" : m.hand === "L" ? "Left hand" : "No hand",
+    f: m.finger  ? "Finger " + m.finger         : "No finger",
+    leaf: m.photo ? "Image " + m.photo : r.name
   };
 }
 function openPathTo(r){
@@ -520,7 +520,7 @@ function renderTree(){
   var box = $("tree");
   $("counter").textContent = (S.idx+1) + " / " + S.images.length;
   if (!S.images.length){
-    box.innerHTML = '<div class="empty">Nog geen foto\'s geladen.<br>Sleep ze hierheen of gebruik <b>Map laden</b>.</div>';
+    box.innerHTML = '<div class="empty">No images loaded yet.<br>Drop them here or use <b>Load folder</b>.</div>';
     return;
   }
   var root = buildTree(), frag = document.createDocumentFragment();
@@ -612,10 +612,10 @@ function draw(){
     if (r){
       ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "13px " + UIFONT;
       ctx.fillStyle = r.broken ? "#FFB020" : "#5E7079";
-      ctx.fillText(r.broken ? "Kon deze foto niet lezen: " + r.name : "Foto wordt geladen\u2026", W/2, H/2-10);
+      ctx.fillText(r.broken ? "Could not read this image: " + r.name : "Loading image\u2026", W/2, H/2-10);
       if (r.broken){
         ctx.fillStyle = "#5E7079";
-        ctx.fillText("Open de tool rechtstreeks in Chrome, of controleer het bestandsformaat.", W/2, H/2+12);
+        ctx.fillText("Open the tool directly in Chrome, or check the file format.", W/2, H/2+12);
       }
     }
     ctx.restore(); return;
@@ -882,7 +882,7 @@ canvas.addEventListener("wheel", function(e){
 /* ================= hud ================= */
 function showHud(um, px, isScale){
   var h = $("hud"); h.style.display = "block";
-  $("hudLbl").textContent = isScale ? "Kalibratielijn" : "Diameter";
+  $("hudLbl").textContent = isScale ? "Calibration line" : "Diameter";
   if (isScale || um == null){
     $("hudVal").textContent = fmt(px||0,0) + " px"; $("hudPin").style.left = "0%";
   } else {
@@ -906,7 +906,7 @@ function calcUm(){ return parseFloat($("dVal").value) * parseFloat($("dUnit").va
 function previewScale(){
   if (!pendingCalib) return;
   var um = calcUm(), el = $("dPrev");
-  if (!(um > 0)){ el.className = "scaleflag bad"; el.textContent = "Vul een afstand groter dan 0 in."; return; }
+  if (!(um > 0)){ el.className = "scaleflag bad"; el.textContent = "Enter a distance greater than 0."; return; }
   var ppm = pendingCalib.px/um*1000;
   el.className = "scaleflag ok";
   el.textContent = fmt(pendingCalib.px,0) + " px  =  " + fmt(um,0) + " µm  →  " +
@@ -937,9 +937,9 @@ function recompute(r){
   });
 }
 $("bScaleAll").onclick = function(){
-  var r = cur(); if (!r || !r.pxPerMm) return toast("Kalibreer eerst deze foto.");
+  var r = cur(); if (!r || !r.pxPerMm) return toast("Calibrate this image first.");
   S.images.forEach(function(o){ if (o !== r){ o.pxPerMm = r.pxPerMm; recompute(o); } });
-  dirty = true; renderTree(); syncPanel(); toast("Schaal toegepast op " + S.images.length + " foto's.");
+  dirty = true; renderTree(); syncPanel(); toast("Scale applied to " + S.images.length + " images.");
 };
 
 /* ================= stats ================= */
@@ -974,7 +974,7 @@ function syncPanel(){
   $("sZoom").textContent = Math.round(S.zoom*100) + "%";
   var flag = $("scaleFlag");
   if (!r){
-    flag.className = "scaleflag bad"; flag.textContent = "Geen foto";
+    flag.className = "scaleflag bad"; flag.textContent = "No image";
     ["cCap","cDil","cGia","cHas","cDol","cHem"].forEach(function(i){ $(i).textContent = "0"; });
     $("cDen").textContent = "–"; $("cMean").textContent = "–"; return;
   }
@@ -982,7 +982,7 @@ function syncPanel(){
     flag.className = "scaleflag ok";
     flag.textContent = fmt(r.pxPerMm,0) + " px = 1 mm  ·  " + fmt(1000/r.pxPerMm,3) + " µm/px";
   } else {
-    flag.className = "scaleflag bad"; flag.textContent = "Niet gekalibreerd — metingen in pixels";
+    flag.className = "scaleflag bad"; flag.textContent = "Not calibrated, measurements in pixels";
   }
   var s = stats(r);
   $("cCap").textContent = s.cap; $("cDil").textContent = s.dil; $("cGia").textContent = s.giant;
@@ -992,13 +992,13 @@ function syncPanel(){
   $("mPat").value = r.meta.patient; $("mVis").value = r.meta.visit;
   $("mHand").value = r.meta.hand; $("mFin").value = r.meta.finger; $("mPh").value = r.meta.photo;
   $("sSel").textContent = S.sel
-    ? "Geselecteerd: " + labelOf(S.sel) + " · Del verwijdert" +
-      (S.sel.type === "capillary" ? " · G = giant · R = draaien" : "")
-    : "Niets geselecteerd";
+    ? "Selected: " + labelOf(S.sel) + " · Del removes" +
+      (S.sel.type === "capillary" ? " · G = giant · R = rotate" : "")
+    : "Nothing selected";
 }
 function labelOf(a){
-  return {capillary:"capillair", dollar:"abnormale vorm 1 ($)", hash:"abnormale vorm 2 (#/$)",
-          triangle:"bloeding", measure:"meting"}[a.type] || a.type;
+  return {capillary:"capillary", dollar:"abnormal shape 1 ($)", hash:"abnormal shape 2 (#/$)",
+          triangle:"haemorrhage", measure:"measurement"}[a.type] || a.type;
 }
 ["mPat","mVis","mHand","mFin","mPh"].forEach(function(id){
   $(id).addEventListener("input", function(){
@@ -1011,9 +1011,9 @@ function labelOf(a){
 
 /* ================= bulk assign ================= */
 $("bAuto").onclick = function(){
-  if (S.idx < 0) return toast("Selecteer eerst een startfoto.");
+  if (S.idx < 0) return toast("Select a starting image first.");
   var pat = $("aPat").value.trim(), vis = $("aVis").value.trim();
-  if (!pat || !vis) return toast("Vul patiënt en visit in.");
+  if (!pat || !vis) return toast("Fill in patient and visit.");
   var hands = $("aOrder").value === "RL" ? ["R","L"] : ["L","R"];
   var plan = [];
   hands.forEach(function(h){
@@ -1026,7 +1026,7 @@ $("bAuto").onclick = function(){
     openPathTo(r); n++;
   }
   dirty = true; renderTree(); syncPanel();
-  toast(n + " foto's ingedeeld onder " + groupLabel(pat) + ", visit " + vis + ".");
+  toast(n + " images assigned to " + groupLabel(pat) + ", visit " + vis + ".");
 };
 
 /* ================= tools & keys ================= */
@@ -1052,7 +1052,7 @@ document.addEventListener("keydown", function(e){
   if ((e.ctrlKey||e.metaKey) && k === "y"){ e.preventDefault(); redo(); return; }
   if ((e.ctrlKey||e.metaKey) && k === "s"){
     e.preventDefault();
-    if (FS.dir) fsSave().then(function(ok){ if (ok) toast("Opgeslagen in " + FS.dir.name + "."); });
+    if (FS.dir) fsSave().then(function(ok){ if (ok) toast("Saved in " + FS.dir.name + "."); });
     else if (S.slot) saveSlot(S.slot);
     else $("bProj").click();
     return;
@@ -1103,8 +1103,8 @@ $("fProj").onchange  = function(){
   fr.onload = function(){
     try {
       var hit = applyProject(JSON.parse(fr.result));
-      toast(hit ? hit + " foto's gekoppeld." : "Project geladen. Laad nu je fotomap.");
-    } catch(err){ toast("Kon het projectbestand niet lezen."); }
+      toast(hit ? hit + " images matched." : "Project loaded. Now load your image folder.");
+    } catch(err){ toast("Could not read the project file."); }
   };
   fr.readAsText(f); this.value = "";
 };
@@ -1126,28 +1126,28 @@ function slotNames(){
   return out.sort(natCmp);
 }
 function saveSlot(name, quiet){
-  if (!HASSTORE) return toast("Deze browser blokkeert opslag. Gebruik Opslaan als bestand.");
+  if (!HASSTORE) return toast("This browser blocks storage. Use Save as file.");
   try {
     localStorage.setItem(PKEY + name, projectJson());
     localStorage.setItem(STORE + "last", name);
     S.slot = name; dirty = false; markSaved();
-    if (!quiet) toast('Opgeslagen als "' + name + '".');
-  } catch(e){ toast("Opslag zit vol. Verwijder een oud project of sla op als bestand."); }
+    if (!quiet) toast('Saved as "' + name + '".');
+  } catch(e){ toast("Storage is full. Delete an old project or save as file."); }
 }
 function markSaved(){
   var d = new Date(), p = function(n){ return (n<10?"0":"")+n; };
   $("sSave").textContent = S.slot
-    ? 'Bewaard: ' + S.slot + ' · ' + p(d.getHours()) + ":" + p(d.getMinutes())
-    : "Niet opgeslagen";
+    ? 'Saved: ' + S.slot + ' · ' + p(d.getHours()) + ":" + p(d.getMinutes())
+    : "Not saved";
 }
 function renderProjects(){
   var box = $("pList"), names = slotNames();
   if (!HASSTORE){
-    box.innerHTML = '<div class="empty">Deze browser blokkeert lokale opslag.<br>' +
-      'Open het bestand rechtstreeks in Chrome, of gebruik Opslaan als bestand.</div>';
+    box.innerHTML = '<div class="empty">This browser blocks local storage.<br>' +
+      'Open the tool in Chrome, or use Save as file.</div>';
     return;
   }
-  if (!names.length){ box.innerHTML = '<div class="empty">Nog niets opgeslagen in het programma.</div>'; return; }
+  if (!names.length){ box.innerHTML = '<div class="empty">Nothing saved in the tool yet.</div>'; return; }
   box.innerHTML = "";
   names.forEach(function(n){
     var meta = {n:0, saved:""};
@@ -1156,23 +1156,23 @@ function renderProjects(){
     var row = document.createElement("div");
     row.className = "prow" + (n === S.slot ? " on" : "");
     row.innerHTML = '<div><div class="pn">' + esc(n) + '</div>' +
-      '<div class="pm">' + meta.n + " foto's · " + esc(meta.saved) + '</div></div>' +
-      '<div class="sp"><button class="btn" data-a="open">Openen</button>' +
-      '<button class="btn" data-a="del">Verwijderen</button></div>';
+      '<div class="pm">' + meta.n + " images · " + esc(meta.saved) + '</div></div>' +
+      '<div class="sp"><button class="btn" data-a="open">Open</button>' +
+      '<button class="btn" data-a="del">Delete</button></div>';
     row.querySelector('[data-a=open]').onclick = function(){
       try {
         var hit = applyProject(JSON.parse(localStorage.getItem(PKEY+n)));
         S.slot = n; dirty = false; markSaved();
         localStorage.setItem(STORE+"last", n);
         $("pName").value = n; renderProjects();
-        toast(hit ? hit + " foto's gekoppeld." : 'Project "' + n + '" geladen. Laad nu je fotomap.');
-      } catch(e){ toast("Kon dit project niet lezen."); }
+        toast(hit ? hit + " images matched." : 'Project "' + n + '" loaded. Now load your image folder.');
+      } catch(e){ toast("Could not read this project."); }
     };
     row.querySelector('[data-a=del]').onclick = function(){
       if (row.dataset.confirm !== "1"){
         row.dataset.confirm = "1";
-        this.textContent = "Zeker?";
-        setTimeout(function(){ row.dataset.confirm = ""; if (row.querySelector('[data-a=del]')) row.querySelector('[data-a=del]').textContent = "Verwijderen"; }, 3000);
+        this.textContent = "Sure?";
+        setTimeout(function(){ row.dataset.confirm = ""; if (row.querySelector('[data-a=del]')) row.querySelector('[data-a=del]').textContent = "Delete"; }, 3000);
         return;
       }
       localStorage.removeItem(PKEY+n);
@@ -1193,8 +1193,8 @@ function suggestName(){
 $("pClose").onclick = function(){ $("veil3").classList.remove("on"); };
 $("pSave").onclick = function(){
   var n = $("pName").value.trim();
-  if (!n) return toast("Geef het project een naam.");
-  if (!S.images.length) return toast("Nog geen foto's geladen.");
+  if (!n) return toast("Give the project a name.");
+  if (!S.images.length) return toast("No images loaded yet.");
   saveSlot(n); renderProjects();
 };
 $("veil3").addEventListener("keydown", function(e){ if (e.key === "Escape") $("pClose").click(); });
@@ -1270,11 +1270,11 @@ function stamp(){
   var d = new Date(), p = function(n){ return (n<10?"0":"")+n; };
   return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"_"+p(d.getHours())+p(d.getMinutes());
 }
-function folderPath(r){                       // export: alleen patiënt / visit
+function folderPath(r){                       // export: patient / visit only
   var m = r.meta;
-  return [groupLabel(m.patient), m.visit ? "Visit " + m.visit : "Zonder visit"].join("/");
+  return [groupLabel(m.patient), m.visit ? "Visit " + m.visit : "No visit"].join("/");
 }
-function leafFile(r){                         // hand, vinger en foto zitten in de bestandsnaam
+function leafFile(r){                         // hand, finger and image are already in the file name
   var stem = r.name.replace(/\.[^.]+$/,"");
   var m = r.meta, code = (m.hand||"") + (m.finger||"") + (m.photo === "2" ? "B" : m.photo === "1" ? "A" : "");
   if (code && stem.toUpperCase().indexOf(code.toUpperCase()) < 0) stem += "_" + code;
@@ -1334,29 +1334,29 @@ function projectJson(){
   }, null, 1);
 }
 function saveProject(){
-  if (!S.images.length) return toast("Niets om op te slaan.");
-  dl("capillaroscopie_project_" + stamp() + ".json",
+  if (!S.images.length) return toast("Nothing to save.");
+  dl("capillaroscopy_project_" + stamp() + ".json",
      new Blob([projectJson()], {type:"application/json"}));
-  toast("Project opgeslagen.");
+  toast("Project saved.");
 }
 $("bSave").onclick = saveProject;
 
 $("bCsv").onclick = function(){
-  if (!S.images.length) return toast("Niets om te exporteren.");
+  if (!S.images.length) return toast("Nothing to export.");
   var c = csvPair();
   dl("capillaroscopy_image_level_" + stamp() + ".csv", new Blob([c.image], {type:"text/csv"}));
   dl("capillaroscopy_measurements_" + stamp() + ".csv", new Blob([c.meas], {type:"text/csv"}));
-  toast("Twee CSV-bestanden geëxporteerd.");
+  toast("Two CSV files exported.");
 };
 
 $("bPng").onclick = function(){
-  var r = cur(); if (!r || !r.ready) return toast("Geen foto geselecteerd.");
+  var r = cur(); if (!r || !r.ready) return toast("No image selected.");
   var url = renderPng(S.idx);
   dl(leafFile(r), new Blob([b64ToBytes(url.split(",")[1])], {type:"image/png"}));
 };
 
 $("bZip").onclick = function(){
-  if (!S.images.length) return toast("Niets om op te slaan.");
+  if (!S.images.length) return toast("Nothing to save.");
   var files = [], used = {}, i = 0;
   var step = function(){
     if (i >= S.images.length){
@@ -1364,8 +1364,8 @@ $("bZip").onclick = function(){
       files.push({name:"image_level.csv",   data:bytes(c.image)});
       files.push({name:"measurements.csv",  data:bytes(c.meas)});
       files.push({name:"project.json",      data:bytes(projectJson())});
-      dl("capillaroscopie_" + stamp() + ".zip", makeZip(files));
-      toast("ZIP klaar: " + (files.length-3) + " foto's in mapstructuur.");
+      dl("capillaroscopy_" + stamp() + ".zip", makeZip(files));
+      toast("ZIP ready: " + (files.length-3) + " images in folder structure.");
       return;
     }
     var r = S.images[i];
@@ -1376,10 +1376,10 @@ $("bZip").onclick = function(){
       files.push({name:name, data:b64ToBytes(renderPng(i).split(",")[1])});
     }
     i++;
-    toast("Foto's verwerken " + i + " / " + S.images.length);
+    toast("Processing images " + i + " / " + S.images.length);
     setTimeout(step, 0);
   };
-  toast("Export gestart…");
+  toast("Export started…");
   setTimeout(step, 30);
 };
 
@@ -1429,8 +1429,8 @@ function fillSelect(el, values, want){
   if (want && values.indexOf(want) >= 0) el.value = want;
 }
 $("bXls").onclick = function(){
-  if (!S.images.length) return toast("Nog geen foto's geladen.");
-  var pats = [], viss = ["1","2"];               // visit 1 en 2 staan er altijd
+  if (!S.images.length) return toast("No images loaded yet.");
+  var pats = [], viss = ["1","2"];               // visit 1 and 2 are always offered
   S.images.forEach(function(r){
     if (r.meta.patient && pats.indexOf(r.meta.patient) < 0) pats.push(r.meta.patient);
     if (r.meta.visit && viss.indexOf(r.meta.visit) < 0) viss.push(r.meta.visit);
@@ -1456,16 +1456,16 @@ $("xCopy").onclick = function(){
     var ok = false;
     try { ok = document.execCommand("copy"); } catch(e){}
     ta.remove();
-    toast(ok ? "Blok gekopieerd. Plak in Left Hand, 2nd." : "Kopiëren lukte niet; selecteer het blok handmatig.");
+    toast(ok ? "Block copied. Paste into Left Hand, 2nd." : "Copy failed; select the block manually.");
   };
   if (navigator.clipboard && window.isSecureContext){
     navigator.clipboard.writeText(text).then(function(){
-      toast("Blok gekopieerd. Plak in Left Hand, 2nd.");
+      toast("Block copied. Paste into Left Hand, 2nd.");
     }, fallback);
   } else fallback();
 };
 
-/* ================= gekoppelde map (File System Access) ================= */
+/* ================= linked folder (File System Access) ================= */
 var FS = { on: !!(window.showDirectoryPicker && window.isSecureContext), dir:null, saved:null, busy:false };
 
 function idbOpen(){
@@ -1511,16 +1511,16 @@ async function collect(dir, prefix, out){
 async function useDir(dir){
   FS.dir = dir;
   updateLinkBtn();
-  try {                                   // een bestaand project in de map gaat vóór
+  try {                                   // an existing project in the folder takes precedence
     var fh = await dir.getFileHandle("project.json");
     var txt = await (await fh.getFile()).text();
     applyProject(JSON.parse(txt));
   } catch(e){}
   var files = [];
   await collect(dir, "", files);
-  if (!files.length){ toast("Geen foto's gevonden in " + dir.name + "."); return; }
+  if (!files.length){ toast("No images found in " + dir.name + "."); return; }
   addFiles(files);
-  toast(dir.name + " gekoppeld · " + files.length + " foto's.");
+  toast(dir.name + " linked · " + files.length + " images.");
 }
 async function fsSave(){
   if (!FS.dir || FS.busy) return false;
@@ -1531,25 +1531,25 @@ async function fsSave(){
     await w.write(projectJson()); await w.close();
     dirty = false; S.slot = null; markSavedDir();
     return true;
-  } catch(e){ toast("Kon niet schrijven in de map. Controleer de rechten."); return false; }
+  } catch(e){ toast("Could not write to the folder. Check permissions."); return false; }
   finally { FS.busy = false; }
 }
 function markSavedDir(){
   var d = new Date(), p = function(n){ return (n<10?"0":"")+n; };
-  $("sSave").textContent = "Bewaard in " + FS.dir.name + " · " + p(d.getHours()) + ":" + p(d.getMinutes());
+  $("sSave").textContent = "Saved in " + FS.dir.name + " · " + p(d.getHours()) + ":" + p(d.getMinutes());
 }
 function updateLinkBtn(){
   var b = $("bLink");
   if (!FS.on){ b.style.display = "none"; return; }
   b.style.display = "";
   $("wDir").style.display = FS.dir ? "none" : "";
-  b.textContent = FS.dir ? ("Map: " + FS.dir.name)
-                 : (FS.saved ? "Map koppelen (" + FS.saved.name + ")" : "Map koppelen");
+  b.textContent = FS.dir ? ("Folder: " + FS.dir.name)
+                 : (FS.saved ? "Link folder (" + FS.saved.name + ")" : "Link folder");
   b.className = FS.dir ? "btn" : "btn primary";
 }
 $("bLink").onclick = async function(){
   try {
-    if (!FS.dir && FS.saved){                       // vorige map hergebruiken
+    if (!FS.dir && FS.saved){                       // reuse the previously linked folder
       var perm = await FS.saved.requestPermission({mode:"readwrite"});
       if (perm === "granted"){ await useDir(FS.saved); return; }
     }
@@ -1557,10 +1557,10 @@ $("bLink").onclick = async function(){
     await idbPut("dir", dir);
     FS.saved = dir;
     await useDir(dir);
-  } catch(e){ /* gebruiker annuleerde */ }
+  } catch(e){ /* user cancelled */ }
 };
 
-/* ================= over ================= */
+/* ================= about ================= */
 $("verTag").textContent = "v" + APP_VERSION;
 $("aboutVer").textContent = APP_VERSION;
 $("bAbout").onclick = function(){ $("veil4").classList.add("on"); };
@@ -1577,7 +1577,7 @@ if (FS.on){
     FS.saved = dir; updateLinkBtn();
     return dir.queryPermission({mode:"readwrite"}).then(function(perm){
       if (perm === "granted") return useDir(dir);
-      setTimeout(function(){ toast('Klik "Map koppelen (' + dir.name + ')" om verder te werken.'); }, 500);
+      setTimeout(function(){ toast('Click "Link folder (' + dir.name + ')" to continue.'); }, 500);
     });
   }).catch(function(){});
 }
@@ -1590,7 +1590,7 @@ if (HASSTORE){
     try {
       applyProject(JSON.parse(localStorage.getItem(PKEY + last)));
       S.slot = last; markSaved();
-      setTimeout(function(){ toast('Project "' + last + '" staat klaar. Laad je fotomap.'); }, 400);
+      setTimeout(function(){ toast('Project "' + last + '" is ready. Load your image folder.'); }, 400);
     } catch(e){}
   }
 }

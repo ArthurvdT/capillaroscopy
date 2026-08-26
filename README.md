@@ -1,11 +1,11 @@
 # Nailfold Capillaroscopy Annotator
 
-Version 1.0
+Version 1.1
 
 A browser-based tool for annotating and counting nailfold videocapillaroscopy (NVC) images.
 It runs entirely on the user's own computer. No image or measurement ever leaves the machine.
 
-Developed by Arthur van der Tol, Ghent University, under the supervision of
+Developed by Arthur Vandertol, Ghent University, under the supervision of
 Prof. Dr. Vanessa Smith.
 
 **Research use only.** This software is intended for research and teaching. It is not a
@@ -38,17 +38,17 @@ The tool then works offline and updates itself whenever a new version is publish
 
 ## 4. Recommended workflow
 
-1. **Link the image folder.** Click "Map koppelen" and select the patient folder. The tool
+1. **Link the image folder.** Click "Link folder" and select the patient folder. The tool
    reads the images and, if a `project.json` is already present, restores all previous work.
 2. **Check the tree.** Patient, visit, hand, finger and photo are read from the folder name
    and the file names. Anything the tool could not read can be corrected in the
    Identification panel on the right.
 3. **Calibrate the scale.** Select the scale tool (7) and drag a line along one side of the
    1 mm square burned into the image. Choose the unit (mm) and confirm. Use
-   "Schaal op alle foto's toepassen" if the magnification is identical across the set.
+   "Apply scale to all images" if the magnification is identical across the set.
 4. **Annotate.** Keys 1 to 6: capillary, giant, abnormal shape 1, abnormal shape 2,
    haemorrhage, measure. Ctrl+Z undoes, Delete removes the selected item.
-5. **Export.** "Excel-blok" copies a 5 by 16 table for one visit. "Alles opslaan (ZIP)"
+5. **Export.** "Excel block" copies a 5 by 16 table for one visit. "Save all (ZIP)"
    writes the annotated images, both CSV files and the project file.
 
 Work is saved automatically into `project.json` inside the linked folder, every few seconds.
@@ -120,4 +120,4 @@ When publishing a new version, raise `APP_VERSION` in `index.html` and the cache
 
 ## 9. Contact
 
-For any isseus, please contact: arthur.vandertol@ugent.be
+Add a contact address here before distributing the tool to other centres.
