@@ -161,7 +161,7 @@
 <div class="app">
   <div class="top">
     <div class="brand"><b>Capillaroscopy Annotator</b>
-      <span id="verTag">v1.1</span>
+      <span id="verTag">v1.3</span>
       <button class="btn ghost" id="bAbout" style="padding:1px 7px;font-size:11px">?</button></div>
     <div class="sep"></div>
     <label class="file btn">Load images<input type="file" id="fFiles" multiple accept="image/*"></label>
@@ -225,15 +225,12 @@
 
       <div class="block">
         <h4>This image</h4>
-        <div class="row"><span class="k">Capillaries</span><span class="v" id="cCap">0</span></div>
+        <div class="row"><span class="k">Capillaries (per 1 mm)</span><span class="v" id="cCap">0</span></div>
         <div class="row"><span class="k">Dilations (20–49 µm)</span><span class="v" id="cDil">0</span></div>
         <div class="row"><span class="k">Giants (thick arrow)</span><span class="v" id="cGia">0</span></div>
         <div class="row"><span class="k">Abnormal shape 1 ($)</span><span class="v" id="cDol">0</span></div>
         <div class="row"><span class="k">Abnormal shape 2 (#/$)</span><span class="v" id="cHas">0</span></div>
         <div class="row"><span class="k">Haemorrhages</span><span class="v" id="cHem">0</span></div>
-        <div class="row" style="border-top:1px solid var(--line);margin-top:5px;padding-top:6px">
-          <span class="k">Density</span><span class="v" id="cDen">–</span></div>
-        <div class="row"><span class="k">Mean diameter</span><span class="v" id="cMean">–</span></div>
       </div>
 
       <div class="block">
@@ -367,7 +364,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null, slot: null
 };
-var APP_VERSION = "1.1";
+var APP_VERSION = "1.3";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -944,7 +941,7 @@ $("bScaleAll").onclick = function(){
 
 /* ================= stats ================= */
 function stats(r){
-  var s = {cap:0,hash:0,dollar:0,hem:0,giant:0,dil:0,meas:[],mean:null,density:null};
+  var s = {cap:0,hash:0,dollar:0,hem:0,giant:0,dil:0,meas:[],mean:null};
   var big = [], flagged = 0;
   r.ann.forEach(function(a){
     if (a.type === "capillary"){ s.cap++; if (a.giant) flagged++; }
@@ -965,7 +962,6 @@ function stats(r){
     });
   }).length;
   if (s.meas.length) s.mean = s.meas.reduce(function(x,y){return x+y;},0)/s.meas.length;
-  if (r.pxPerMm && s.cap) s.density = s.cap/(r.w/r.pxPerMm);
   return s;
 }
 function syncPanel(){
@@ -976,7 +972,7 @@ function syncPanel(){
   if (!r){
     flag.className = "scaleflag bad"; flag.textContent = "No image";
     ["cCap","cDil","cGia","cHas","cDol","cHem"].forEach(function(i){ $(i).textContent = "0"; });
-    $("cDen").textContent = "–"; $("cMean").textContent = "–"; return;
+    return;
   }
   if (r.pxPerMm){
     flag.className = "scaleflag ok";
@@ -987,8 +983,6 @@ function syncPanel(){
   var s = stats(r);
   $("cCap").textContent = s.cap; $("cDil").textContent = s.dil; $("cGia").textContent = s.giant;
   $("cHas").textContent = s.hash; $("cDol").textContent = s.dollar; $("cHem").textContent = s.hem;
-  $("cDen").textContent = s.density != null ? fmt(s.density,1) + " /mm" : "–";
-  $("cMean").textContent = s.mean != null ? fmt(s.mean,1) + " µm" : "–";
   $("mPat").value = r.meta.patient; $("mVis").value = r.meta.visit;
   $("mHand").value = r.meta.hand; $("mFin").value = r.meta.finger; $("mPh").value = r.meta.photo;
   $("sSel").textContent = S.sel
@@ -1297,7 +1291,7 @@ function renderPng(i){
 function csvPair(){
   var q = function(v){ v = (v==null?"":String(v)); return /[",;\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
   var img = [["tool_version","patient","visit","hand","finger","photo","file","px_per_mm","image_width_mm",
-              "n_capillaries","capillary_density_per_mm","n_dilations","n_giants",
+              "n_capillaries","n_dilations","n_giants",
               "n_abnormal_shape_1","n_abnormal_shape_2","n_microhaemorrhages",
               "n_measurements","mean_diameter_um","min_diameter_um","max_diameter_um"].join(",")];
   var mes = [["tool_version","patient","visit","hand","finger","photo","file","measurement_id",
@@ -1307,7 +1301,7 @@ function csvPair(){
     var base = [APP_VERSION,m.patient,m.visit,m.hand,m.finger,m.photo,r.name];
     img.push(base.concat([
       r.pxPerMm ? fmt(r.pxPerMm,1) : "", r.pxPerMm ? fmt(r.w/r.pxPerMm,3) : "",
-      s.cap, s.density != null ? fmt(s.density,2) : "", s.dil, s.giant, s.dollar, s.hash, s.hem,
+      s.cap, s.dil, s.giant, s.dollar, s.hash, s.hem,
       s.meas.length, s.mean != null ? fmt(s.mean,2) : "",
       s.meas.length ? fmt(Math.min.apply(null,s.meas),2) : "",
       s.meas.length ? fmt(Math.max.apply(null,s.meas),2) : ""

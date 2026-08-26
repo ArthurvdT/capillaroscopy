@@ -1,6 +1,6 @@
 # Nailfold Capillaroscopy Annotator
 
-Version 1.1
+Version 1.3
 
 A browser-based tool for annotating and counting nailfold videocapillaroscopy (NVC) images.
 It runs entirely on the user's own computer. No image or measurement ever leaves the machine.
@@ -46,7 +46,8 @@ The tool then works offline and updates itself whenever a new version is publish
 3. **Calibrate the scale.** Select the scale tool (7) and drag a line along one side of the
    1 mm square burned into the image. Choose the unit (mm) and confirm. Use
    "Apply scale to all images" if the magnification is identical across the set.
-4. **Annotate.** Keys 1 to 6: capillary, giant, abnormal shape 1, abnormal shape 2,
+4. **Annotate inside the 1 mm square.** Only mark structures within the grid square, since
+   the counts are reported per millimetre. Keys 1 to 6: capillary, giant, abnormal shape 1, abnormal shape 2,
    haemorrhage, measure. Ctrl+Z undoes, Delete removes the selected item.
 5. **Export.** "Excel block" copies a 5 by 16 table for one visit. "Save all (ZIP)"
    writes the annotated images, both CSV files and the project file.
@@ -63,15 +64,16 @@ because the tool enforces consistency in clicking, not in judgement.
 | Capillary | One arrow per capillary loop counted in the distal row |
 | Giant | Homogeneously enlarged loop with a diameter of 50 µm or more, marked with the thick arrow |
 | Dilation | A measurement between 20 µm and 49.9 µm |
-| Abnormal shape | Marked with `$` |
-| Abnormal shape who twist >=3 | Marked with `#/$` |
+| Abnormal shape 1 | Marked with `$` |
+| Abnormal shape 2 | Marked with `#/$` |
 | Microhaemorrhage | Marked with a filled triangle |
 | Diameter | Measured perpendicular to the long axis of the loop, at its widest point |
-| Density | Number of capillaries divided by the image width in millimetres |
+| Density | Not reported separately: the capillary count inside the 1 mm grid is the density per millimetre |
 
-Density as reported by this tool is per image width, not per fixed 1 mm segment of the
-distal row. If your protocol requires the latter, use the raw counts and compute it yourself
-from `measurements.csv`.
+Density assumes that all annotations are placed **inside the 1.00 x 1.00 mm square** burned
+into the image by the capillaroscope. Under that protocol the number of capillaries in the
+square is the density per millimetre, so no division is applied. If capillaries outside the
+square are also marked, the reported density will be too high.
 
 The 50 µm threshold and the 20 µm dilation threshold are set in the source code
 (constants `GIANT` and `DILAT`). Do not change them mid-study.
