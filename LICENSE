@@ -1,0 +1,38 @@
+Nailfold Capillaroscopy Annotator
+Copyright (c) 2026 Arthur van der Tol, Ghent University
+
+This work is licensed under the Creative Commons
+Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0).
+
+Full licence text: https://creativecommons.org/licenses/by-nc/4.0/legalcode
+Summary:          https://creativecommons.org/licenses/by-nc/4.0/
+
+You are free to:
+  - Share: copy and redistribute the software in any medium or format
+  - Adapt: remix, transform and build upon the software
+
+Under the following terms:
+  - Attribution: you must give appropriate credit, provide a link to this
+    licence, and indicate if changes were made.
+  - NonCommercial: you may not use the software for commercial purposes
+    without prior written permission from the copyright holder.
+
+ACADEMIC USE
+
+If you use this software, or data produced with it, in a publication,
+presentation or poster, please cite it. See CITATION.cff and the "How to
+cite" section of README.md for the preferred citation.
+
+Report the version number shown in the tool and in every export
+(field `tool_version`), so that counts from different centres can be
+compared.
+
+NO WARRANTY
+
+This software is provided "as is", without warranty of any kind, express
+or implied. It is research software and not a medical device. It must not
+be used for diagnosis or clinical decision-making. The authors accept no
+liability for any claim, damage or other liability arising from its use.
+
+For commercial licensing or other permissions, contact
+arthur.vandertol@ugent.be

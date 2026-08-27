@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Nailfold Capillaroscopy Annotator"
+abstract: >-
+  A browser-based tool for annotating and counting nailfold
+  videocapillaroscopy images. Marks capillaries, giant capillaries,
+  abnormal shapes and microhaemorrhages, measures capillary diameter
+  in micrometres, and exports counts per image. All processing runs
+  locally in the browser.
+type: software
+version: "2.4"
+date-released: 2026-08-27
+license: CC-BY-NC-4.0
+repository-code: "https://github.com/ArthurvdT/capillaroscopy"
+url: "https://arthurvdt.github.io/capillaroscopy"
+keywords:
+  - nailfold videocapillaroscopy
+  - capillaroscopy
+  - systemic sclerosis
+  - image annotation
+  - research software
+authors:
+  - family-names: "van der Tol"
+    given-names: "Arthur"
+    affiliation: "Ghent University, Ghent, Belgium"
+  - family-names: "Smith"
+    given-names: "Vanessa"
+    affiliation: "Ghent University and Ghent University Hospital, Ghent, Belgium"

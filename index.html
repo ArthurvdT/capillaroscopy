@@ -161,7 +161,7 @@
 <div class="app">
   <div class="top">
     <div class="brand"><b>Capillaroscopy Annotator</b>
-      <span id="verTag">v2.2</span>
+      <span id="verTag">v2.4</span>
       <button class="btn ghost" id="bAbout" style="padding:1px 7px;font-size:11px">?</button></div>
     <div class="sep"></div>
     <label class="file btn">Load images<input type="file" id="fFiles" multiple accept="image/*"></label>
@@ -314,7 +314,12 @@
        decision-making.</p>
     <p><b>Privacy.</b> All image processing happens locally in your browser. No images
        or data are sent to any server.</p>
-    <p style="font-size:11px;color:var(--dimmer)">When publishing, cite the version you used.
+    <p style="border-top:1px solid var(--line);padding-top:11px">
+       <b>How to cite.</b> van der Tol A, Smith V. Nailfold Capillaroscopy Annotator
+       (version <span id="aboutVer2"></span>). Ghent University, 2026.
+       https://arthurvdt.github.io/capillaroscopy</p>
+    <p style="font-size:11px;color:var(--dimmer)">Licensed under CC BY-NC 4.0: free for
+       non-commercial research, with attribution. When publishing, cite the version you used.
        The version number is included in every CSV and project export.</p>
     <div class="acts">
       <a class="btn ghost" href="https://github.com/ArthurvdT/capillaroscopy#readme" target="_blank" rel="noopener"
@@ -370,7 +375,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null, slot: null
 };
-var APP_VERSION = "2.2";
+var APP_VERSION = "2.4";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -436,6 +441,7 @@ function parseMeta(path){
 
 /* ================= loading ================= */
 function pathOf(f){ return f.webkitRelativePath || f._path || f.name; }
+function stemOf(p){ return String(p).replace(/\.[^.\/]+$/, "").toLowerCase(); }
 function addFiles(files){
   var arr = Array.prototype.slice.call(files).filter(function(f){
     return /^image\//.test(f.type) || /\.(jpe?g|png|tiff?|bmp|webp)$/i.test(f.name);
@@ -444,6 +450,30 @@ function addFiles(files){
   arr.sort(function(a,b){
     return pathOf(a).localeCompare(pathOf(b), undefined, {numeric:true});
   });
+
+  // Never load the tool's own output, the same file twice, or an annotated PNG
+  // sitting next to the original it was made from.
+  var have = {}, byStem = {}, keep = [];
+  S.images.forEach(function(o){ have[stemOf(o.path)] = 1; });
+  arr.forEach(function(f){
+    var pth = pathOf(f), st = stemOf(pth);
+    if (/_annotated\.png$/i.test(pth)) return;
+    if (have[st]) return;
+    var prev = byStem[st];
+    if (prev){
+      if (/\.png$/i.test(prev.name) && !/\.png$/i.test(f.name)){   // original wins over export
+        keep[keep.indexOf(prev)] = f; byStem[st] = f;
+      }
+      return;
+    }
+    byStem[st] = f; keep.push(f);
+  });
+  var skipped = arr.length - keep.length;
+  arr = keep;
+  if (skipped) setTimeout(function(){
+    toast(skipped + " duplicate or annotated file" + (skipped > 1 ? "s" : "") + " skipped.");
+  }, 900);
+  if (!arr.length) return;
   var first = S.images.length, pending = arr.length;
   arr.forEach(function(f){
     var url = URL.createObjectURL(f), im = new Image();
@@ -1328,7 +1358,7 @@ function leafFile(r){                         // hand, finger and image are alre
   var stem = r.name.replace(/\.[^.]+$/,"");
   var m = r.meta, code = (m.hand||"") + (m.finger||"") + (m.photo === "2" ? "B" : m.photo === "1" ? "A" : "");
   if (code && stem.toUpperCase().indexOf(code.toUpperCase()) < 0) stem += "_" + code;
-  return stem + ".png";
+  return stem + "_annotated.png";
 }
 function renderPng(i){
   var keepIdx = S.idx, keepCtx = ctx, keepZ = S.zoom, keepX = S.panX, keepY = S.panY, keepSel = S.sel;
@@ -1624,6 +1654,7 @@ $("bLink").onclick = async function(){
 /* ================= about ================= */
 $("verTag").textContent = "v" + APP_VERSION;
 $("aboutVer").textContent = APP_VERSION;
+$("aboutVer2").textContent = APP_VERSION;
 $("bAbout").onclick = function(){ $("veil4").classList.add("on"); };
 $("aboutClose").onclick = function(){ $("veil4").classList.remove("on"); };
 $("veil4").addEventListener("keydown", function(e){ if (e.key === "Escape") $("aboutClose").click(); });
