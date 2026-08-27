@@ -1,6 +1,6 @@
 # Nailfold Capillaroscopy Annotator
 
-Version 1.7
+Version 2.4
 
 A browser-based tool for annotating and counting nailfold videocapillaroscopy (NVC) images.
 It runs entirely on the user's own computer. No image or measurement ever leaves the machine.
