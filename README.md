@@ -11,6 +11,19 @@ Prof. Dr. Vanessa Smith.
 **Research use only.** This software is intended for research and teaching. It is not a
 medical device and must not be used for diagnosis or clinical decision-making.
 
+**Licence.** CC BY-NC 4.0: free to use, share and adapt for non-commercial research,
+provided you give credit. See `LICENSE`.
+
+## How to cite
+
+If you use this tool, or data produced with it, please cite:
+
+> van der Tol A, Smith V. Nailfold Capillaroscopy Annotator (version 2.4).
+> Ghent University, 2026. https://arthurvdt.github.io/capillaroscopy
+
+State the version you used. It is shown next to the title in the tool and is included in
+every export as `tool_version`, so counts from different centres remain comparable.
+
 ---
 
 ## 1. What it does
@@ -83,12 +96,41 @@ If a name cannot be read, the field simply stays empty and the tree shows `No vi
 4. **Annotate inside the 1 mm square.** Only mark structures within the grid square, since
    the counts are reported per millimetre. Keys 1 to 6: capillary, giant, abnormal shape 1,
    abnormal shape 2, haemorrhage, measure. Ctrl+Z undoes, Delete removes the selected item.
-5. **Export.** "Excel block" copies a 5 by 16 table for one visit. "Save all (ZIP)"
-   writes the annotated images, both CSV files and the project file.
+5. **Export.** "Excel block" copies a 5 by 16 table for one visit. "Save patient (ZIP)" writes a
+   ZIP for the current patient only; "Save all (ZIP)" does the same for every patient loaded.
+   Each ZIP contains the annotated images, both CSV files and the project file.
 
 Work is saved automatically into `project.json` inside the linked folder, every few seconds.
 
-## 6. Counting definitions
+## 6. Scale calibration
+
+Pixels mean nothing until the tool knows how large one pixel is. Magnification, camera and
+working distance differ per device, so the scale has to be set from the image itself.
+
+**How to calibrate.** Select the scale tool (key 7) and drag a line along one side of the
+1.00 x 1.00 mm square that the capillaroscope burns into the image. A dialog appears asking
+what real distance that line represents. Enter the value and, next to it, choose the unit.
+
+**Choose `mm`, not `µm`.** One side of the square is 1 mm. Entering `1` with the unit set to
+µm makes every later measurement a thousand times too small. Before confirming, read the
+preview line in the dialog: it shows something like `742 px = 1000 µm → 742 px/mm ·
+1.348 µm/px`. If that line looks wrong, the calibration is wrong.
+
+**One scale per image.** The calibration belongs to the image it was made on. If the whole
+set was recorded at the same magnification, press "Apply scale to all images" to copy it to
+every image at once. Recalibrate whenever the magnification or the working distance changes.
+
+**Effect on measurements.** With a scale set, every measurement is reported in micrometres
+and is classified automatically: normal below 20 µm, dilated from 20 to 49.9 µm, giant from
+50 µm. Without a scale, measurements are shown in pixels and are not classified. Changing the
+scale afterwards recalculates all existing measurements on that image; the annotations
+themselves are stored as coordinates and are never affected.
+
+**Where it ends up.** The calibration is written to `project.json` and appears in
+`image_level.csv` as `px_per_mm`, so any reviewer can verify how a diameter was derived. A
+scale bar is drawn in the bottom right corner of the canvas as a visual check.
+
+## 7. Counting definitions
 
 These definitions are fixed in the software. They must be agreed on before multicentre use,
 because the tool enforces consistency in clicking, not in judgement.
@@ -99,7 +141,7 @@ because the tool enforces consistency in clicking, not in judgement.
 | Giant | Homogeneously enlarged loop with a diameter of 50 µm or more, marked with the thick arrow |
 | Dilation | A measurement between 20 µm and 49.9 µm |
 | Abnormal shape 1 | Marked with `$` |
-| Abnormal shape twisted >=3 | Marked with `#/$` |
+| Abnormal shape 2 | Marked with `#/$` |
 | Microhaemorrhage | Marked with a filled triangle |
 | Diameter | Measured perpendicular to the long axis of the loop, at its widest point |
 
@@ -111,19 +153,19 @@ are also marked, the reported count will be too high.
 The 50 µm threshold and the 20 µm dilation threshold are set in the source code
 (constants `GIANT` and `DILAT`). Do not change them mid-study.
 
-## 7. Output files
+## 8. Output files
 
 | File | Contents |
 |---|---|
 | `project.json` | All annotations as coordinates. This is the editable master file. |
 | `image_level.csv` | One row per image: counts per category, and the mean, minimum and maximum measured diameter |
 | `measurements.csv` | One row per individual measurement in µm, with its classification |
-| `*.png` | Flattened images with the annotations drawn on. Not editable. |
+| `*_annotated.png` | Flattened images with the annotations drawn on. Not editable. Ignored when a folder is loaded, so unpacking an export into the image folder is harmless. |
 
 Every CSV row and the project file carry a `tool_version` field. Report that version in any
 publication, and check it before pooling data from several centres.
 
-## 8. Data protection
+## 9. Data protection
 
 All processing happens in the browser. Images are read from disk by the browser itself and
 are not uploaded. There is no server component, no analytics and no external library.
@@ -131,7 +173,7 @@ are not uploaded. There is no server component, no analytics and no external lib
 Note that the file names may contain patient identifiers. The tool copies those names into
 the CSV files. Use pseudonymised file names before sharing any export.
 
-## 9. Publishing the tool
+## 10. Publishing the tool
 
 The folder contains everything needed for static hosting, for example GitHub Pages:
 
@@ -144,6 +186,8 @@ icon-192.png
 icon-512.png
 icon-512-maskable.png
 README.md
+LICENSE
+CITATION.cff
 ```
 
 Upload the folder to a repository, enable Pages on the main branch, and share the resulting
@@ -153,6 +197,6 @@ HTTP or from a local file.
 When publishing a new version, raise `APP_VERSION` in `index.html` and the cache name in
 `sw.js` so that existing users receive the update.
 
-## 10. Contact
+## 11. Contact
 
 If there are issues, please contact arthur.vandertol@ugent.be
