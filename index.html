@@ -161,7 +161,7 @@
 <div class="app">
   <div class="top">
     <div class="brand"><b>Capillaroscopy Annotator</b>
-      <span id="verTag">v2.0</span>
+      <span id="verTag">v2.2</span>
       <button class="btn ghost" id="bAbout" style="padding:1px 7px;font-size:11px">?</button></div>
     <div class="sep"></div>
     <label class="file btn">Load images<input type="file" id="fFiles" multiple accept="image/*"></label>
@@ -172,7 +172,7 @@
     <div class="sep"></div>
     <button class="btn ghost" id="bCsv">CSV</button>
     <button class="btn ghost" id="bXls">Excel block</button>
-    <button class="btn ghost" id="bPng">This image</button>
+    <button class="btn ghost" id="bPng">Save patient (ZIP)</button>
     <button class="btn primary" id="bZip">Save all (ZIP)</button>
     <a class="btn ghost" id="bDocs" href="https://github.com/ArthurvdT/capillaroscopy#readme" target="_blank" rel="noopener"
        style="text-decoration:none">Instructions</a>
@@ -370,7 +370,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null, slot: null
 };
-var APP_VERSION = "2.0";
+var APP_VERSION = "2.2";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -1344,7 +1344,8 @@ function renderPng(i){
   ctx = keepCtx; S.idx = keepIdx; S.zoom = keepZ; S.panX = keepX; S.panY = keepY; S.sel = keepSel;
   return url;
 }
-function csvPair(){
+function csvPair(list){
+  list = list || S.images;
   var q = function(v){ v = (v==null?"":String(v)); return /[",;\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
   var img = [["tool_version","patient","visit","hand","finger","photo","file","px_per_mm","image_width_mm",
               "n_capillaries","n_dilations","n_giants",
@@ -1352,7 +1353,7 @@ function csvPair(){
               "n_measurements","mean_diameter_um","min_diameter_um","max_diameter_um"].join(",")];
   var mes = [["tool_version","patient","visit","hand","finger","photo","file","measurement_id",
               "diameter_um","diameter_px","class","x1","y1","x2","y2"].join(",")];
-  S.images.forEach(function(r){
+  list.forEach(function(r){
     var s = stats(r), m = r.meta;
     var base = [APP_VERSION,m.patient,m.visit,m.hand,m.finger,m.photo,r.name];
     img.push(base.concat([
@@ -1372,12 +1373,13 @@ function csvPair(){
   });
   return {image: "\ufeff"+img.join("\n"), meas: "\ufeff"+mes.join("\n")};
 }
-function projectJson(){
+function projectJson(list){
+  list = list || S.images;
   return JSON.stringify({
     format:"capillaroscopy-annotator", version:2, app_version:APP_VERSION,
     saved:new Date().toISOString(),
     thresholds:{giant_um:GIANT, dilated_um:DILAT},
-    images: S.images.map(function(r){
+    images: list.map(function(r){
       return {name:r.name, path:r.path, folder:folderPath(r), width:r.w, height:r.h,
               pxPerMm:r.pxPerMm, calib:r.calib, meta:r.meta, ann:r.ann};
     })
@@ -1399,38 +1401,47 @@ $("bCsv").onclick = function(){
   toast("Two CSV files exported.");
 };
 
-$("bPng").onclick = function(){
-  var r = cur(); if (!r || !r.ready) return toast("No image selected.");
-  var url = renderPng(S.idx);
-  dl(leafFile(r), new Blob([b64ToBytes(url.split(",")[1])], {type:"image/png"}));
+$("bPng").onclick = function(){          // everything belonging to the current patient
+  var r = cur(); if (!r) return toast("No image selected.");
+  var pat = r.meta.patient;
+  var idxs = [];
+  S.images.forEach(function(o, i){ if (o.meta.patient === pat) idxs.push(i); });
+  if (!idxs.length) return toast("Nothing to save.");
+  exportZip(idxs, safeName(pat) + "_" + stamp() + ".zip");
 };
 
-$("bZip").onclick = function(){
-  if (!S.images.length) return toast("Nothing to save.");
-  var files = [], used = {}, i = 0;
+function exportZip(idxs, zipName){
+  if (!idxs.length) return toast("Nothing to save.");
+  var files = [], used = {}, k = 0;
   var step = function(){
-    if (i >= S.images.length){
-      var c = csvPair();
+    if (k >= idxs.length){
+      var list = idxs.map(function(i){ return S.images[i]; });
+      var c = csvPair(list);
       files.push({name:"image_level.csv",   data:bytes(c.image)});
       files.push({name:"measurements.csv",  data:bytes(c.meas)});
-      files.push({name:"project.json",      data:bytes(projectJson())});
-      dl("capillaroscopy_" + stamp() + ".zip", makeZip(files));
+      files.push({name:"project.json",      data:bytes(projectJson(list))});
+      dl(zipName, makeZip(files));
       toast("ZIP ready: " + (files.length-3) + " images in folder structure.");
       return;
     }
-    var r = S.images[i];
+    var i = idxs[k], r = S.images[i];
     if (r.ready){
       var name = folderPath(r) + "/" + leafFile(r);
       if (used[name]) name = name.replace(/\.png$/, " (" + (++used[name]) + ").png");
       else used[name] = 1;
       files.push({name:name, data:b64ToBytes(renderPng(i).split(",")[1])});
     }
-    i++;
-    toast("Processing images " + i + " / " + S.images.length);
+    k++;
+    toast("Processing images " + k + " / " + idxs.length);
     setTimeout(step, 0);
   };
   toast("Export started…");
   setTimeout(step, 30);
+}
+function safeName(t){ return String(t || "patient").replace(/[^A-Za-z0-9_\-]+/g, "_"); }
+
+$("bZip").onclick = function(){
+  exportZip(S.images.map(function(_, i){ return i; }), "capillaroscopy_" + stamp() + ".zip");
 };
 
 /* ================= excel block ================= */
