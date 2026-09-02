@@ -161,7 +161,7 @@
 <div class="app">
   <div class="top">
     <div class="brand"><b>Capillaroscopy Annotator</b>
-      <span id="verTag">v2.5</span>
+      <span id="verTag">v2.6</span>
       <button class="btn ghost" id="bAbout" style="padding:1px 7px;font-size:11px">?</button></div>
     <div class="sep"></div>
     <label class="file btn">Load images<input type="file" id="fFiles" multiple accept="image/*"></label>
@@ -375,7 +375,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null, slot: null
 };
-var APP_VERSION = "2.5";
+var APP_VERSION = "2.6";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -448,20 +448,20 @@ function addFiles(files){
   var all = Array.prototype.slice.call(files);
   var projs = all.filter(function(f){ return /(^|\/)project\.json$/i.test(pathOf(f)); });
   if (projs.length && !addFiles.busy){
-    addFiles.busy = true;
-    var left = projs.length, first = true;
+    addFiles.busy = true;                 // stays true through the retry, so it runs once
+    var left = projs.length, isFirst = true;
+    var retry = function(){ addFiles(all); addFiles.busy = false; };
     projs.forEach(function(f){
       var fr = new FileReader();
       fr.onload = function(){
-        try { applyProject(JSON.parse(fr.result), !first); first = false; } catch(e){}
-        if (--left === 0){ addFiles.busy = false; addFiles(all); }
+        try { applyProject(JSON.parse(fr.result), !isFirst); isFirst = false; } catch(e){}
+        if (--left === 0) retry();
       };
-      fr.onerror = function(){ if (--left === 0){ addFiles.busy = false; addFiles(all); } };
+      fr.onerror = function(){ if (--left === 0) retry(); };
       fr.readAsText(f);
     });
     return;
   }
-  addFiles.busy = false;
   var arr = Array.prototype.slice.call(files).filter(function(f){
     return /^image\//.test(f.type) || /\.(jpe?g|png|tiff?|bmp|webp)$/i.test(f.name);
   });
