@@ -1,7 +1,7 @@
 /* Nailfold Capillaroscopy Annotator - service worker
    Network first, cache as fallback: updates arrive automatically,
    and the tool keeps working without an internet connection. */
-var CACHE = "capann-v2.4";
+var CACHE = "capann-v2.5";
 var ASSETS = ["./", "./index.html", "./manifest.webmanifest",
               "./icon.svg", "./icon-192.png", "./icon-512.png"];
 

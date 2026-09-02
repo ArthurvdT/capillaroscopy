@@ -161,7 +161,7 @@
 <div class="app">
   <div class="top">
     <div class="brand"><b>Capillaroscopy Annotator</b>
-      <span id="verTag">v2.4</span>
+      <span id="verTag">v2.5</span>
       <button class="btn ghost" id="bAbout" style="padding:1px 7px;font-size:11px">?</button></div>
     <div class="sep"></div>
     <label class="file btn">Load images<input type="file" id="fFiles" multiple accept="image/*"></label>
@@ -375,7 +375,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null, slot: null
 };
-var APP_VERSION = "2.4";
+var APP_VERSION = "2.5";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -443,6 +443,25 @@ function parseMeta(path){
 function pathOf(f){ return f.webkitRelativePath || f._path || f.name; }
 function stemOf(p){ return String(p).replace(/\.[^.\/]+$/, "").toLowerCase(); }
 function addFiles(files){
+  // A folder chosen with "Load folder" contains project.json as well: apply it first,
+  // otherwise the annotations would only be restored by "Link folder".
+  var all = Array.prototype.slice.call(files);
+  var projs = all.filter(function(f){ return /(^|\/)project\.json$/i.test(pathOf(f)); });
+  if (projs.length && !addFiles.busy){
+    addFiles.busy = true;
+    var left = projs.length, first = true;
+    projs.forEach(function(f){
+      var fr = new FileReader();
+      fr.onload = function(){
+        try { applyProject(JSON.parse(fr.result), !first); first = false; } catch(e){}
+        if (--left === 0){ addFiles.busy = false; addFiles(all); }
+      };
+      fr.onerror = function(){ if (--left === 0){ addFiles.busy = false; addFiles(all); } };
+      fr.readAsText(f);
+    });
+    return;
+  }
+  addFiles.busy = false;
   var arr = Array.prototype.slice.call(files).filter(function(f){
     return /^image\//.test(f.type) || /\.(jpe?g|png|tiff?|bmp|webp)$/i.test(f.name);
   });
@@ -1165,8 +1184,8 @@ $("mSize").oninput = function(){ S.markerScale = this.value/100; $("szVal").text
 /* ================= files in ================= */
 $("fFiles").onchange = function(){ addFiles(this.files); this.value = ""; };
 $("fDir").onchange   = function(){ addFiles(this.files); this.value = ""; };
-function applyProject(data){
-  S.pending = {};
+function applyProject(data, merge){
+  if (!merge || !S.pending) S.pending = {};
   (data.images||[]).forEach(function(o){ S.pending[o.path] = o; S.pending[o.name] = o; });
   var hit = 0;
   S.images.forEach(function(r){
@@ -1585,33 +1604,42 @@ function idbGet(k){
   });
 }
 
-async function collect(dir, prefix, out){
+async function collect(dir, prefix, out, projects){
   for await (var entry of dir.values()){
     var name = entry.name;
     if (name.charAt(0) === "." ) continue;
     if (entry.kind === "directory"){
       if (name === "annotated") continue;
-      await collect(entry, prefix + name + "/", out);
+      await collect(entry, prefix + name + "/", out, projects);
     } else if (/\.(jpe?g|png|tiff?|bmp|webp)$/i.test(name)){
       var f = await entry.getFile();
       f._path = prefix + name;
       out.push(f);
+    } else if (/^project\.json$/i.test(name) && projects){
+      projects.push(entry);               // also picked up from subfolders
     }
   }
 }
 async function useDir(dir){
   FS.dir = dir;
   updateLinkBtn();
-  try {                                   // an existing project in the folder takes precedence
-    var fh = await dir.getFileHandle("project.json");
-    var txt = await (await fh.getFile()).text();
-    applyProject(JSON.parse(txt));
-  } catch(e){}
-  var files = [];
-  await collect(dir, "", files);
+  var files = [], projects = [];
+  await collect(dir, "", files, projects);
+  var loaded = 0;
+  for (var i = 0; i < projects.length; i++){        // existing work takes precedence
+    try {
+      var txt = await (await projects[i].getFile()).text();
+      applyProject(JSON.parse(txt), i > 0);
+      loaded++;
+    } catch(e){}
+  }
   if (!files.length){ toast("No images found in " + dir.name + "."); return; }
   addFiles(files);
-  toast(dir.name + " linked · " + files.length + " images.");
+  setTimeout(function(){
+    toast(loaded
+      ? dir.name + " linked · " + files.length + " images · saved work restored"
+      : dir.name + " linked · " + files.length + " images · no project.json found");
+  }, 700);
 }
 async function fsSave(){
   if (!FS.dir || FS.busy) return false;
