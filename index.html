@@ -161,10 +161,11 @@
 <div class="app">
   <div class="top">
     <div class="brand"><b>Capillaroscopy Annotator</b>
-      <span id="verTag">v2.9</span>
+      <span id="verTag">v3.0</span>
       <button class="btn ghost" id="bAbout" style="padding:1px 7px;font-size:11px">?</button></div>
     <div class="sep"></div>
-    <label class="file btn">Load images<input type="file" id="fFiles" multiple accept="image/*"></label>
+    <label class="file btn" id="wImg">Load images<input type="file" id="fFiles" multiple accept="image/*"></label>
+    <button class="btn" id="bAdd" style="display:none">Load another folder</button>
     <label class="file btn" id="wDir">Load folder<input type="file" id="fDir" webkitdirectory directory multiple></label>
     <button class="btn" id="bLink" style="display:none">Link folder</button>
     <div class="sep"></div>
@@ -375,7 +376,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null, slot: null
 };
-var APP_VERSION = "2.9";
+var APP_VERSION = "3.0";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -498,6 +499,7 @@ function addFiles(files){
     var url = URL.createObjectURL(f), im = new Image();
     var path = pathOf(f);
     var rec = {id:uid(), name:f.name, path:path, url:url, img:im, w:0, h:0, ready:false,
+               dirId:f._dirId || null,
                pxPerMm:null, calib:null, meta:parseMeta(path), ann:[], undo:[], redo:[]};
     var saved = S.pending && (S.pending[path] || S.pending[f.name]);
     if (saved){
@@ -1151,7 +1153,7 @@ document.addEventListener("keydown", function(e){
   if ((e.ctrlKey||e.metaKey) && k === "y"){ e.preventDefault(); redo(); return; }
   if ((e.ctrlKey||e.metaKey) && k === "s"){
     e.preventDefault();
-    if (FS.dir) fsSave().then(function(ok){ if (ok) toast("Saved in " + FS.dir.name + "."); });
+    if (FS.dirs.length) fsSave().then(function(ok){ if (ok) toast("Saved."); });
     else if (S.slot) saveSlot(S.slot);
     else $("bProj").click();
     return;
@@ -1189,10 +1191,10 @@ $("fDir").onchange   = function(){
   // finish the linked folder first, then start clean and unlink.
   var go = function(){
     clearWorkspace();
-    FS.dir = null; updateLinkBtn();
+    updateLinkBtn();
     addFiles(fl);
   };
-  if (FS.dir && dirty){ fsSave().then(go, go); } else go();
+  if (FS.dirs.length && dirty){ fsSave().then(go, go); } else go();
 };
 function applyProject(data, merge){
   if (!merge || !S.pending) S.pending = {};
@@ -1310,7 +1312,7 @@ $("veil3").addEventListener("keydown", function(e){ if (e.key === "Escape") $("p
 
 setInterval(function(){
   if (!dirty) return;
-  if (FS.dir) fsSave();
+  if (FS.dirs.length) fsSave();
   else if (S.slot && HASSTORE) saveSlot(S.slot, true);
 }, 4000);
 window.addEventListener("beforeunload", function(e){
@@ -1586,7 +1588,7 @@ $("xCopy").onclick = function(){
 };
 
 /* ================= linked folder (File System Access) ================= */
-var FS = { on: !!(window.showDirectoryPicker && window.isSecureContext), dir:null, saved:null, busy:false };
+var FS = { on: !!(window.showDirectoryPicker && window.isSecureContext), dirs:[], saved:null, busy:false };
 
 function idbOpen(){
   return new Promise(function(res, rej){
@@ -1635,77 +1637,115 @@ function clearWorkspace(){
     if (r.url && r.url.indexOf("blob:") === 0){ try { URL.revokeObjectURL(r.url); } catch(e){} }
   });
   S.images = []; S.idx = -1; S.sel = null; S.pending = null; S.slot = null;
+  FS.dirs = [];
   dirty = false;
   $("sSave").textContent = "Not saved";
   draw(); renderTree(); syncPanel();
 }
-async function useDir(dir){
-  if (FS.dir && FS.dir !== dir && dirty) await fsSave();   // finish the previous folder first
-  clearWorkspace();                       // one folder, one project: never mix patients
-  FS.dir = dir;
+async function useDir(dir, add){
+  if (!add){                              // starting over: close out every open folder first
+    if (FS.dirs.length && dirty) await fsSave();
+    clearWorkspace();
+  } else {
+    for (var k = 0; k < FS.dirs.length; k++){
+      try { if (await FS.dirs[k].handle.isSameEntry(dir)){
+        toast(dir.name + " is already loaded."); return; } } catch(e){}
+    }
+  }
+  var entry = {handle:dir, id:uid()};
+  FS.dirs.push(entry);
   updateLinkBtn();
   var files = [], projects = [];
-  await collect(dir, "", files, projects);
+  await collect(dir, dir.name + "/", files, projects);   // folder name becomes the tree root
   var loaded = 0;
-  for (var i = 0; i < projects.length; i++){        // existing work takes precedence
+  for (var i = 0; i < projects.length; i++){             // existing work takes precedence
     try {
       var txt = await (await projects[i].getFile()).text();
-      applyProject(JSON.parse(txt), i > 0);
+      applyProject(JSON.parse(txt), add || i > 0);
       loaded++;
     } catch(e){}
   }
   if (!files.length){ toast("No images found in " + dir.name + "."); return; }
+  files.forEach(function(f){ f._dirId = entry.id; });    // so each folder saves its own work
   addFiles(files);
   setTimeout(function(){
     toast(loaded
-      ? dir.name + " linked · " + files.length + " images · saved work restored"
-      : dir.name + " linked · " + files.length + " images · no project.json found");
+      ? dir.name + " loaded · " + files.length + " images · saved work restored"
+      : dir.name + " loaded · " + files.length + " images · no project.json found");
   }, 700);
 }
 async function fsSave(){
-  if (!FS.dir || FS.busy) return false;
+  if (!FS.dirs.length || FS.busy) return false;
   FS.busy = true;
   try {
-    var fh = await FS.dir.getFileHandle("project.json", {create:true});
-    var w = await fh.createWritable();
-    await w.write(projectJson()); await w.close();
+    for (var k = 0; k < FS.dirs.length; k++){
+      var d = FS.dirs[k];
+      var list = S.images.filter(function(r){ return r.dirId === d.id; });
+      if (!list.length) continue;
+      var fh = await d.handle.getFileHandle("project.json", {create:true});
+      var w = await fh.createWritable();
+      await w.write(projectJson(list)); await w.close();  // each folder gets only its own patients
+    }
     dirty = false; S.slot = null; markSavedDir();
     return true;
   } catch(e){ toast("Could not write to the folder. Check permissions."); return false; }
   finally { FS.busy = false; }
 }
+function dirNames(){
+  return FS.dirs.map(function(d){ return d.handle.name; }).join(", ");
+}
 function markSavedDir(){
   var d = new Date(), p = function(n){ return (n<10?"0":"")+n; };
-  $("sSave").textContent = "Saved in " + FS.dir.name + " · " + p(d.getHours()) + ":" + p(d.getMinutes());
+  var where = FS.dirs.length === 1 ? FS.dirs[0].handle.name : FS.dirs.length + " folders";
+  $("sSave").textContent = "Saved in " + where + " · " + p(d.getHours()) + ":" + p(d.getMinutes());
 }
 function updateLinkBtn(){
-  var b = $("bLink");
-  if (!FS.on){ b.style.display = "none"; return; }   // Safari/Firefox: classic input only
+  var b = $("bLink"), a = $("bAdd");
+  if (!FS.on){ b.style.display = "none"; a.style.display = "none"; return; }
   b.style.display = "";
-  $("wDir").style.display = "none";                  // Chromium: one folder button only
-  b.textContent = FS.dir ? ("Folder: " + FS.dir.name)
-                 : (FS.saved ? "Load folder (" + FS.saved.name + ")" : "Load folder");
-  b.className = FS.dir ? "btn" : "btn primary";
+  $("wDir").style.display = "none";                  // Chromium: folder buttons only
+  $("wImg").style.display = "none";
+  a.style.display = FS.dirs.length ? "" : "none";
+  if (FS.dirs.length){
+    b.textContent = FS.dirs.length === 1 ? "Folder: " + FS.dirs[0].handle.name
+                                         : "Folders: " + FS.dirs.length;
+    b.title = dirNames();
+    b.className = "btn";
+  } else {
+    b.textContent = FS.saved && FS.saved.length
+      ? "Load folder (" + FS.saved[0].name + (FS.saved.length > 1 ? ", \u2026" : "") + ")"
+      : "Load folder";
+    b.title = "";
+    b.className = "btn primary";
+  }
 }
-$("bLink").onclick = async function(){
+async function pickFolder(add){
   try {
-    if (!FS.dir && FS.saved){                       // reuse the previously linked folder
-      var perm = await FS.saved.requestPermission({mode:"readwrite"});
-      if (perm === "granted"){ await useDir(FS.saved); return; }
+    if (!add && !FS.dirs.length && FS.saved && FS.saved.length){   // reopen the previous set
+      var ok = true;
+      for (var k = 0; k < FS.saved.length; k++){
+        if (await FS.saved[k].requestPermission({mode:"readwrite"}) !== "granted"){ ok = false; break; }
+      }
+      if (ok){
+        for (var j = 0; j < FS.saved.length; j++) await useDir(FS.saved[j], j > 0);
+        return;
+      }
     }
     var dir = await window.showDirectoryPicker({mode:"readwrite"});
-    await idbPut("dir", dir);
-    FS.saved = dir;
-    await useDir(dir);
+    await useDir(dir, add);
+    FS.saved = FS.dirs.map(function(d){ return d.handle; });
+    await idbPut("dirs", FS.saved);
   } catch(e){
     // Cancelled: do nothing. Anything else means the picker is unavailable here,
     // so fall back to the classic folder input.
-    if (e && e.name !== "AbortError"){
+    if (!add && e && e.name !== "AbortError"){
       var inp = $("wDir").querySelector("input");
       if (inp) inp.click();
     }
   }
-};
+}
+$("bLink").onclick = function(){ pickFolder(false); };
+$("bAdd").onclick  = function(){ pickFolder(true); };
 
 /* ================= about ================= */
 $("verTag").textContent = "v" + APP_VERSION;
@@ -1720,12 +1760,21 @@ window.addEventListener("resize", resize);
 resize(); setTool("capillary"); syncPanel(); renderTree();
 updateLinkBtn();
 if (FS.on){
-  idbGet("dir").then(function(dir){
-    if (!dir) return;
-    FS.saved = dir; updateLinkBtn();
-    return dir.queryPermission({mode:"readwrite"}).then(function(perm){
-      if (perm === "granted") return useDir(dir);
-      setTimeout(function(){ toast('Click "Link folder (' + dir.name + ')" to continue.'); }, 500);
+  idbGet("dirs").then(function(dirs){
+    if (!dirs || !dirs.length){
+      return idbGet("dir").then(function(one){ return one ? [one] : null; });  // pre-3.0 projects
+    }
+    return dirs;
+  }).then(function(dirs){
+    if (!dirs || !dirs.length) return;
+    FS.saved = dirs; updateLinkBtn();
+    return dirs[0].queryPermission({mode:"readwrite"}).then(function(perm){
+      if (perm === "granted"){
+        var chain = Promise.resolve();
+        dirs.forEach(function(d, i){ chain = chain.then(function(){ return useDir(d, i > 0); }); });
+        return chain;
+      }
+      setTimeout(function(){ toast('Click "Load folder (' + dirs[0].name + ')" to continue.'); }, 500);
     });
   }).catch(function(){});
 }
