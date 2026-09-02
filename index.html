@@ -161,7 +161,7 @@
 <div class="app">
   <div class="top">
     <div class="brand"><b>Capillaroscopy Annotator</b>
-      <span id="verTag">v2.6</span>
+      <span id="verTag">v2.9</span>
       <button class="btn ghost" id="bAbout" style="padding:1px 7px;font-size:11px">?</button></div>
     <div class="sep"></div>
     <label class="file btn">Load images<input type="file" id="fFiles" multiple accept="image/*"></label>
@@ -375,7 +375,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null, slot: null
 };
-var APP_VERSION = "2.6";
+var APP_VERSION = "2.9";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -1183,7 +1183,17 @@ $("mSize").oninput = function(){ S.markerScale = this.value/100; $("szVal").text
 
 /* ================= files in ================= */
 $("fFiles").onchange = function(){ addFiles(this.files); this.value = ""; };
-$("fDir").onchange   = function(){ addFiles(this.files); this.value = ""; };
+$("fDir").onchange   = function(){
+  var fl = Array.prototype.slice.call(this.files); this.value = "";
+  // Loading a different folder means working on a different patient:
+  // finish the linked folder first, then start clean and unlink.
+  var go = function(){
+    clearWorkspace();
+    FS.dir = null; updateLinkBtn();
+    addFiles(fl);
+  };
+  if (FS.dir && dirty){ fsSave().then(go, go); } else go();
+};
 function applyProject(data, merge){
   if (!merge || !S.pending) S.pending = {};
   (data.images||[]).forEach(function(o){ S.pending[o.path] = o; S.pending[o.name] = o; });
@@ -1620,7 +1630,18 @@ async function collect(dir, prefix, out, projects){
     }
   }
 }
+function clearWorkspace(){
+  S.images.forEach(function(r){
+    if (r.url && r.url.indexOf("blob:") === 0){ try { URL.revokeObjectURL(r.url); } catch(e){} }
+  });
+  S.images = []; S.idx = -1; S.sel = null; S.pending = null; S.slot = null;
+  dirty = false;
+  $("sSave").textContent = "Not saved";
+  draw(); renderTree(); syncPanel();
+}
 async function useDir(dir){
+  if (FS.dir && FS.dir !== dir && dirty) await fsSave();   // finish the previous folder first
+  clearWorkspace();                       // one folder, one project: never mix patients
   FS.dir = dir;
   updateLinkBtn();
   var files = [], projects = [];
@@ -1659,11 +1680,11 @@ function markSavedDir(){
 }
 function updateLinkBtn(){
   var b = $("bLink");
-  if (!FS.on){ b.style.display = "none"; return; }
+  if (!FS.on){ b.style.display = "none"; return; }   // Safari/Firefox: classic input only
   b.style.display = "";
-  $("wDir").style.display = FS.dir ? "none" : "";
+  $("wDir").style.display = "none";                  // Chromium: one folder button only
   b.textContent = FS.dir ? ("Folder: " + FS.dir.name)
-                 : (FS.saved ? "Link folder (" + FS.saved.name + ")" : "Link folder");
+                 : (FS.saved ? "Load folder (" + FS.saved.name + ")" : "Load folder");
   b.className = FS.dir ? "btn" : "btn primary";
 }
 $("bLink").onclick = async function(){
@@ -1676,7 +1697,14 @@ $("bLink").onclick = async function(){
     await idbPut("dir", dir);
     FS.saved = dir;
     await useDir(dir);
-  } catch(e){ /* user cancelled */ }
+  } catch(e){
+    // Cancelled: do nothing. Anything else means the picker is unavailable here,
+    // so fall back to the classic folder input.
+    if (e && e.name !== "AbortError"){
+      var inp = $("wDir").querySelector("input");
+      if (inp) inp.click();
+    }
+  }
 };
 
 /* ================= about ================= */
