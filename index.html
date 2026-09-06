@@ -161,7 +161,7 @@
 <div class="app">
   <div class="top">
     <div class="brand"><b>Capillaroscopy Annotator</b>
-      <span id="verTag">v3.0</span>
+      <span id="verTag">v3.1</span>
       <button class="btn ghost" id="bAbout" style="padding:1px 7px;font-size:11px">?</button></div>
     <div class="sep"></div>
     <label class="file btn" id="wImg">Load images<input type="file" id="fFiles" multiple accept="image/*"></label>
@@ -222,7 +222,7 @@
       <div class="block">
         <h4>Scale</h4>
         <div class="scaleflag bad" id="scaleFlag">Not calibrated</div>
-        <button class="btn ghost" id="bScaleAll" style="width:100%;margin-top:7px">Apply scale to all images</button>
+        <button class="btn ghost" id="bScaleAll" style="width:100%;margin-top:7px">Apply scale to this patient</button>
         <div class="hint">Drag a line along one side of the 1 mm square, then choose the unit: <b>mm</b>, not µm.</div>
       </div>
 
@@ -376,7 +376,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null, slot: null
 };
-var APP_VERSION = "3.0";
+var APP_VERSION = "3.1";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -1042,8 +1042,14 @@ function recompute(r){
 }
 $("bScaleAll").onclick = function(){
   var r = cur(); if (!r || !r.pxPerMm) return toast("Calibrate this image first.");
-  S.images.forEach(function(o){ if (o !== r){ o.pxPerMm = r.pxPerMm; recompute(o); } });
-  dirty = true; renderTree(); syncPanel(); toast("Scale applied to " + S.images.length + " images.");
+  var n = 0;
+  S.images.forEach(function(o){
+    if (o !== r && o.meta.patient === r.meta.patient){   // never across patients
+      o.pxPerMm = r.pxPerMm; recompute(o); n++;
+    }
+  });
+  dirty = true; renderTree(); syncPanel();
+  toast("Scale applied to " + (n+1) + " images of " + groupLabel(r.meta.patient) + ".");
 };
 
 /* ================= stats ================= */
