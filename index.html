@@ -361,7 +361,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null
 };
-var APP_VERSION = "4.2";
+var APP_VERSION = "4.3";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -1034,7 +1034,8 @@ canvas.addEventListener("wheel", function(e){
   e.preventDefault();
   var b = canvas.getBoundingClientRect(), px = e.clientX-b.left, py = e.clientY-b.top;
   var before = toImg(px,py);
-  S.zoom = Math.max(0.03, Math.min(60, S.zoom * Math.pow(0.9985, e.deltaY)));
+  var d = e.deltaY * (e.ctrlKey ? 7 : 1);   // pinch arrives as ctrl+wheel with small deltas
+  S.zoom = Math.max(0.03, Math.min(60, S.zoom * Math.pow(0.9985, d)));
   var after = toImg(px,py);
   S.panX += (after.x-before.x)*S.zoom; S.panY += (after.y-before.y)*S.zoom;
   drawSoon(); $("sZoom").textContent = Math.round(S.zoom*100) + "%";
