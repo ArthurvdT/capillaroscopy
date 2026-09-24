@@ -365,7 +365,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null
 };
-var APP_VERSION = "4.6";
+var APP_VERSION = "4.9";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -520,8 +520,33 @@ var scanQ = [], scanBusy = 0;
 function scanNext(){
   while (scanBusy < 2 && scanQ.length) scanOne(scanQ.shift());
 }
+/* A File from disk is only a reference: Chrome refuses to read it once the file
+   on disk changes (iCloud / OneDrive download or evict it in the background).
+   So the compressed bytes are copied into memory once, during the scan, and the
+   disk is never needed again for that image. A JPEG is 10-20x smaller than the
+   decoded bitmap, so memory stays far below what v3 used. */
+function captureBytes(rec){
+  if (rec.captured) return Promise.resolve();
+  var type = rec.file.type || "";
+  var fromFile = function(f){
+    return f.arrayBuffer().then(function(buf){
+      rec.file = new Blob([buf], {type: type || f.type || ""});
+      rec.captured = true;
+    });
+  };
+  return fromFile(rec.file).catch(function(e1){
+    rec.readErr = (e1 && e1.name) || "read error";
+    if (!rec.handle) throw e1;
+    return rec.handle.getFile().then(fromFile);       // stale reference: take a fresh one
+  }).then(function(){ rec.readErr = null; }, function(e2){
+    rec.readErr = (e2 && e2.name) || rec.readErr || "read error";
+  });
+}
 function scanOne(rec){
   scanBusy++;
+  captureBytes(rec).then(function(){ scanDecode(rec); });
+}
+function scanDecode(rec){
   var url = URL.createObjectURL(rec.file), im = new Image();
   var finish = function(){
     scanBusy--;
@@ -555,8 +580,17 @@ function ensureLoaded(r){
   if (!r || r.broken) return Promise.resolve(null);
   if (r.img) return Promise.resolve(r.img);
   if (r.loading) return r.loading;
+  if (!r.captured && !r.captureTried){    // not yet in memory: capture once, then load
+    r.captureTried = true;
+    r.loading = captureBytes(r).then(function(){ r.loading = null; return ensureLoaded(r); });
+    return r.loading;
+  }
   r.loading = new Promise(function(res){
-    function fail(){ r.broken = true; r.loading = null; res(null); drawSoon(); }
+    function fail(){
+      r.failWhy = r.captured ? "image data could not be decoded"
+                             : "file could not be read" + (r.readErr ? " (" + r.readErr + ")" : "");
+      r.broken = true; r.loading = null; res(null); drawSoon();
+    }
     function dataRetry(){                 // blob: blocked or file unreadable: try a data URL
       if (r.dataUrl) return fail();
       var fr = new FileReader();
@@ -601,7 +635,7 @@ function renderTreeSoon(){
 function select(i){
   if (i < 0 || i >= S.images.length) return;
   var rr = S.images[i];
-  if (rr.broken){ rr.broken = false; rr.freshTried = false; }  // retry on reopen
+  if (rr.broken){ rr.broken = false; rr.freshTried = false; rr.captureTried = false; }  // retry on reopen
   S.idx = i; S.sel = null;
   freeLevels(i);
   openPathTo(S.images[i]);
@@ -797,7 +831,7 @@ function draw(){
       ctx.fillText(r.broken ? "Could not read this image: " + r.name : "Loading image\u2026", W/2, H/2-10);
       if (r.broken){
         ctx.fillStyle = "#5E7079";
-        ctx.fillText("Open the tool directly in Chrome, or check the file format.", W/2, H/2+12);
+        ctx.fillText(r.failWhy ? "Reason: " + r.failWhy : "Open the tool directly in Chrome, or check the file format.", W/2, H/2+12);
       }
     }
     ctx.restore(); return;
@@ -1442,18 +1476,27 @@ function renderPngBytes(i){               // loads the image, draws, and release
     if (!im) return null;
     var keepIdx = S.idx, keepCtx = ctx, keepZ = S.zoom, keepX = S.panX, keepY = S.panY, keepSel = S.sel;
     S.idx = i;
+    if (!r.w){ r.w = im.naturalWidth; r.h = im.naturalHeight; r.ready = true; }
     var off = document.createElement("canvas");
-    off.width = r.w; off.height = r.h;
-    ctx = off.getContext("2d");
-    S.zoom = 1; S.panX = 0; S.panY = 0; S.sel = null;
-    ctx.drawImage(im, 0, 0);
-    r.ann.forEach(function(a){ drawAnn(a, false); });
-    ctx = keepCtx; S.idx = keepIdx; S.zoom = keepZ; S.panX = keepX; S.panY = keepY; S.sel = keepSel;
+    try {
+      off.width = r.w; off.height = r.h;
+      ctx = off.getContext("2d");
+      S.zoom = 1; S.panX = 0; S.panY = 0; S.sel = null;
+      ctx.drawImage(im, 0, 0);
+      r.ann.forEach(function(a){ drawAnn(a, false); });
+    } catch(e){
+      r.failWhy = "drawing failed (" + ((e && e.name) || "error") + ")";
+      off = null;
+    } finally {
+      ctx = keepCtx; S.idx = keepIdx; S.zoom = keepZ; S.panX = keepX; S.panY = keepY; S.sel = keepSel;
+    }
+    if (!off) return null;
     return new Promise(function(res){
       off.toBlob(function(b){
         if (i !== S.idx) unloadHeavy(r);
-        if (!b) return res(null);
-        b.arrayBuffer().then(function(ab){ res(new Uint8Array(ab)); });
+        if (!b){ r.failWhy = "PNG could not be created (memory?)"; return res(null); }
+        b.arrayBuffer().then(function(ab){ res(new Uint8Array(ab)); },
+                             function(){ r.failWhy = "PNG could not be read back"; res(null); });
       }, "image/png");
     });
   });
@@ -1522,7 +1565,7 @@ $("bPng").onclick = function(){          // everything belonging to the current 
 
 function exportZip(idxs, zipName){
   if (!idxs.length) return toast("Nothing to save.");
-  var files = [], used = {}, k = 0;
+  var files = [], used = {}, k = 0, nOk = 0, missed = [];
   var step = function(){
     if (k >= idxs.length){
       var list = idxs.map(function(i){ return S.images[i]; });
@@ -1531,21 +1574,34 @@ function exportZip(idxs, zipName){
                   data:xlsxBytes([xHeader()].concat(data.rows.map(function(r){ return r.cells; })))});
       files.push({name:"project.json", data:bytes(projectJson(list))});
       dl(zipName, makeZip(files));
-      toast("ZIP ready: " + (files.length-2) + " images in folder structure.");
+      toast("ZIP ready: " + nOk + " images in folder structure.");
+      if (missed.length){
+        var why = {};
+        missed.forEach(function(m){ why[m.why] = (why[m.why] || 0) + 1; });
+        alert(missed.length + " of " + idxs.length + " image(s) are NOT in this ZIP.\n\n" +
+              "Reason:\n" + Object.keys(why).map(function(w){ return "  " + why[w] + " \u00d7 " + w; }).join("\n") +
+              "\n\nFirst missing: " + missed.slice(0, 3).map(function(m){ return m.name; }).join(", ") +
+              "\n\nTool v" + APP_VERSION + ". Please send a screenshot of this message to the developer.");
+      }
       return;
     }
     var i = idxs[k], r = S.images[i];
     if (!r.ready && !r.broken){ setTimeout(step, 150); return; }   // scan still running
     k++;
     toast("Processing images " + k + " / " + idxs.length);
-    if (r.broken){ setTimeout(step, 0); return; }
-    renderPngBytes(i).then(function(u8){
+    if (r.broken){ r.broken = false; r.freshTried = false; r.captureTried = false; }  // export retries
+    r.failWhy = null;
+    renderPngBytes(i).catch(function(e){
+      r.failWhy = r.failWhy || "unexpected error (" + ((e && e.name) || "error") + ")";
+      return null;
+    }).then(function(u8){
       if (u8){
+        nOk++;
         var name = folderPath(r) + "/" + leafFile(r);
         if (used[name]) name = name.replace(/\.png$/, " (" + (++used[name]) + ").png");
         else used[name] = 1;
         files.push({name:name, data:u8});
-      }
+      } else missed.push({name:r.name, why:r.failWhy || "unknown"});
       setTimeout(step, 0);
     });
   };
