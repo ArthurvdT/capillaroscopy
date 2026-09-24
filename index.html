@@ -361,7 +361,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null
 };
-var APP_VERSION = "4.3";
+var APP_VERSION = "4.4";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -491,7 +491,8 @@ function addFiles(files){
   var first = S.images.length;
   arr.forEach(function(f){
     var path = pathOf(f);
-    var rec = {id:uid(), name:f.name, path:path, file:f, img:null, w:0, h:0, ready:false,
+    var rec = {id:uid(), name:f.name, path:path, file:f, handle:f._handle || null,
+               img:null, w:0, h:0, ready:false,
                dirId:f._dirId || null,
                pxPerMm:null, calib:null, meta:parseMeta(path), ann:[], undo:[], redo:[]};
     var saved = S.pending && (S.pending[path] || S.pending[f.name]);
@@ -552,18 +553,33 @@ function ensureLoaded(r){
   if (r.img) return Promise.resolve(r.img);
   if (r.loading) return r.loading;
   r.loading = new Promise(function(res){
-    var url = r.dataUrl || URL.createObjectURL(r.file);
-    var im = new Image();
-    im.onload = function(){
-      r.img = im; if (!r.dataUrl) r.tmpUrl = url;
-      r.loading = null; res(im);
-    };
-    im.onerror = function(){
-      r.broken = true; r.loading = null;
-      if (!r.dataUrl) URL.revokeObjectURL(url);
-      res(null); drawSoon();
-    };
-    im.src = url;
+    function fail(){ r.broken = true; r.loading = null; res(null); drawSoon(); }
+    function dataRetry(){                 // blob: blocked or file unreadable: try a data URL
+      if (r.dataUrl) return fail();
+      var fr = new FileReader();
+      fr.onload = function(){ r.dataUrl = fr.result; attempt(); };
+      fr.onerror = fail;
+      fr.readAsDataURL(r.file);
+    }
+    function attempt(){
+      var url = r.dataUrl || URL.createObjectURL(r.file);
+      var im = new Image();
+      im.onload = function(){
+        r.img = im; if (!r.dataUrl) r.tmpUrl = url;
+        r.loading = null; res(im);
+      };
+      im.onerror = function(){
+        if (!r.dataUrl){ try { URL.revokeObjectURL(url); } catch(e){} }
+        if (r.handle && !r.freshTried){   // stale snapshot (cloud sync): take a fresh copy
+          r.freshTried = true;
+          r.handle.getFile().then(function(f){ r.file = f; attempt(); }, dataRetry);
+          return;
+        }
+        dataRetry();
+      };
+      im.src = url;
+    }
+    attempt();
   });
   return r.loading;
 }
@@ -581,6 +597,8 @@ function renderTreeSoon(){
 
 function select(i){
   if (i < 0 || i >= S.images.length) return;
+  var rr = S.images[i];
+  if (rr.broken){ rr.broken = false; rr.freshTried = false; }  // retry on reopen
   S.idx = i; S.sel = null;
   freeLevels(i);
   openPathTo(S.images[i]);
@@ -1659,6 +1677,7 @@ async function collect(dir, prefix, out, projects){
     } else if (/\.(jpe?g|png|tiff?|bmp|webp)$/i.test(name)){
       var f = await entry.getFile();
       f._path = prefix + name;
+      f._handle = entry;                  // kept so a stale snapshot can be refreshed
       out.push(f);
     } else if (/^project\.json$/i.test(name) && projects){
       projects.push(entry);               // also picked up from subfolders
