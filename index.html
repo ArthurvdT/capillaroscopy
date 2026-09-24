@@ -365,7 +365,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null
 };
-var APP_VERSION = "4.5";
+var APP_VERSION = "4.6";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -501,11 +501,8 @@ function addFiles(files){
                img:null, w:0, h:0, ready:false,
                dirId:f._dirId || null,
                pxPerMm:null, calib:null, meta:parseMeta(path), ann:[], undo:[], redo:[]};
-    var saved = S.pending && (S.pending[path] || S.pending[f.name]);
-    if (saved){
-      rec.ann = saved.ann || []; rec.pxPerMm = saved.pxPerMm || null;
-      rec.calib = saved.calib || null; if (saved.meta) rec.meta = saved.meta;
-    }
+    var saved = pendingFor(path, f.name);
+    if (saved) restoreInto(rec, saved);
     S.images.push(rec);
     scanQ.push(rec);
   });
@@ -1319,14 +1316,33 @@ $("fDir").onchange   = function(){
   };
   if (FS.dirs.length && dirty){ fsSave().then(go, go); } else go();
 };
+function pendingFor(path, name){
+  if (!S.pending) return null;
+  var o = S.pending[path];
+  if (!o || o === "ambiguous") o = S.pending[name];
+  if (!o || o === "ambiguous" || o._used) return null;
+  return o;
+}
+function restoreInto(r, o){
+  o._used = true;                        // one saved entry restores at most one image
+  r.ann = (o.ann || []).slice();
+  r.pxPerMm = o.pxPerMm || null;
+  r.calib = o.calib ? Object.assign({}, o.calib) : null;
+  if (o.meta) r.meta = Object.assign({}, o.meta);   // never share meta between images
+  r.undo = []; r.redo = [];
+}
 function applyProject(data, merge){
   if (!merge || !S.pending) S.pending = {};
-  (data.images||[]).forEach(function(o){ S.pending[o.path] = o; S.pending[o.name] = o; });
+  (data.images||[]).forEach(function(o){
+    S.pending[o.path] = o;
+    // a bare file name is only a valid key when it is unambiguous
+    if (S.pending[o.name] === undefined) S.pending[o.name] = o;
+    else if (S.pending[o.name] !== o) S.pending[o.name] = "ambiguous";
+  });
   var hit = 0;
   S.images.forEach(function(r){
-    var o = S.pending[r.path] || S.pending[r.name];
-    if (o){ r.ann = o.ann||[]; r.pxPerMm = o.pxPerMm||null; r.calib = o.calib||null;
-            if (o.meta) r.meta = o.meta; r.undo = []; r.redo = []; hit++; }
+    var o = pendingFor(r.path, r.name);
+    if (o){ restoreInto(r, o); hit++; }
   });
   S.sel = null; draw(); syncPanel(); renderTree();
   return hit;
@@ -1362,7 +1378,7 @@ function crc32(u8){
   for (var i=0;i<u8.length;i++) c2 = (c2>>>8) ^ t[(c2^u8[i]) & 0xFF];
   return (c2 ^ -1) >>> 0;
 }
-function makeZip(files){
+function makeZipBytes(files){
   var parts = [], central = [], offset = 0, enc = new TextEncoder();
   files.forEach(function(f){
     var nb = enc.encode(f.name), crc = crc32(f.data), len = f.data.length;
@@ -1385,8 +1401,13 @@ function makeZip(files){
   var e = new Uint8Array(22), d3 = new DataView(e.buffer);
   d3.setUint32(0,0x06054b50,true); d3.setUint16(8,files.length,true);
   d3.setUint16(10,files.length,true); d3.setUint32(12,cd,true); d3.setUint32(16,offset,true);
-  return new Blob(parts.concat(central,[e]), {type:"application/zip"});
+  var total = parts.concat(central, [e]);
+  var size = total.reduce(function(a,b){ return a + b.length; }, 0);
+  var out = new Uint8Array(size), o = 0;
+  total.forEach(function(p){ out.set(p, o); o += p.length; });
+  return out;
 }
+function makeZip(files){ return new Blob([makeZipBytes(files)], {type:"application/zip"}); }
 function b64ToBytes(b64){
   var bin = atob(b64), a = new Uint8Array(bin.length);
   for (var i=0;i<bin.length;i++) a[i] = bin.charCodeAt(i);
@@ -1505,12 +1526,12 @@ function exportZip(idxs, zipName){
   var step = function(){
     if (k >= idxs.length){
       var list = idxs.map(function(i){ return S.images[i]; });
-      var c = csvPair(list);
-      files.push({name:"image_level.csv",   data:bytes(c.image)});
-      files.push({name:"measurements.csv",  data:bytes(c.meas)});
-      files.push({name:"project.json",      data:bytes(projectJson(list))});
+      var data = xRows(list);
+      files.push({name:"database_rows.xlsx",
+                  data:xlsxBytes([xHeader()].concat(data.rows.map(function(r){ return r.cells; })))});
+      files.push({name:"project.json", data:bytes(projectJson(list))});
       dl(zipName, makeZip(files));
-      toast("ZIP ready: " + (files.length-3) + " images in folder structure.");
+      toast("ZIP ready: " + (files.length-2) + " images in folder structure.");
       return;
     }
     var i = idxs[k], r = S.images[i];
@@ -1547,8 +1568,8 @@ var SLOTS = (function(){
   });
   return out;                                    // L2a, L2b, L3a … R5b
 })();
-function slotImage(pl, v, sl){
-  var cand = S.images.filter(function(r){
+function slotImage(list, pl, v, sl){
+  var cand = list.filter(function(r){
     var m = r.meta;
     return groupLabel(m.patient) === pl && m.visit === v &&
            m.hand === sl.h && m.finger === sl.f && m.photo === sl.p;
@@ -1572,9 +1593,10 @@ function median(a){
   var m = b.length % 2 ? b[mid] : (b[mid-1] + b[mid]) / 2;
   return m % 1 ? fmt(m,1) : String(m);
 }
-function xRows(){
+function xRows(list){
+  list = list || S.images;
   var rows = [], noVisit = 0, pats = [];
-  S.images.forEach(function(r){
+  list.forEach(function(r){
     var pl = groupLabel(r.meta.patient);
     if (pats.indexOf(pl) < 0) pats.push(pl);
     if (r.ann.length && !r.meta.visit) noVisit++;
@@ -1582,7 +1604,7 @@ function xRows(){
   pats.sort(natCmp);
   pats.forEach(function(pl){
     var vs = [];
-    S.images.forEach(function(r){
+    list.forEach(function(r){
       if (groupLabel(r.meta.patient) === pl && r.meta.visit && vs.indexOf(r.meta.visit) < 0)
         vs.push(r.meta.visit);
     });
@@ -1591,7 +1613,7 @@ function xRows(){
       var cells = [], dens = [], dil = [], abn = [], gia = [], pat = [];
       var anyA = 0, anyH = 0, anyG = 0, nAnn = 0;
       SLOTS.forEach(function(sl){
-        var r = slotImage(pl, v, sl);
+        var r = slotImage(list, pl, v, sl);
         if (!r || !r.ann.length){ cells.push("","","","","",""); return; }
         var st = stats(r), ab = st.hash + st.dollar + st.d2 + st.d2s, pc = patternCode(r, st);
         nAnn++;
@@ -1615,6 +1637,60 @@ function xRows(){
     });
   });
   return {rows: rows, noVisit: noVisit};
+}
+function xHeader(){
+  var h = ["Identifier","Visit"];
+  SLOTS.forEach(function(sl){
+    var c = sl.h + sl.f + (sl.p === "1" ? "a" : "b");
+    h.push(c+" density", c+" giants", c+" dilations", c+" abnormal shapes",
+           c+" haemorrhage (1=Y)", c+" pattern (0-4)");
+  });
+  return h.concat(["MEAN CAP DENSITY (SD)","MEDIAN CAP DENSITY","MEAN DILATIONS (SD)","MEDIAN DILATIONS",
+                   "MEAN ABN SHAPES (SD)","MEDIAN ABN SHAPES","PRESENCE ABNORMAL SHAPES (1=Y)","PRESENCE HAEMS (1=Y)",
+                   "MEAN GIANTS (SD)","MEDIAN GIANTS","PRESENCE GIANTS (1=Y)","OVERALL PATTERN (0-4)"]);
+}
+function colName(n){ var s = ""; n++; while (n){ n--; s = String.fromCharCode(65 + n % 26) + s; n = Math.floor(n / 26); } return s; }
+function xmlEsc(v){ return String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function xlsxBytes(rows){                 // a minimal real .xlsx, built with the same ZIP writer
+  var body = rows.map(function(row, ri){
+    var cells = row.map(function(v, ci){
+      if (v === "" || v == null) return "";
+      var ref = colName(ci) + (ri + 1);
+      if (typeof v === "number" || /^-?\d+(\.\d+)?$/.test(String(v)))
+        return '<c r="' + ref + '" t="n"><v>' + v + '</v></c>';
+      return '<c r="' + ref + '" t="inlineStr"><is><t xml:space="preserve">' + xmlEsc(v) + '</t></is></c>';
+    }).join("");
+    return '<row r="' + (ri + 1) + '">' + cells + '</row>';
+  }).join("");
+  var sheet = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<sheetData>' + body + '</sheetData></worksheet>';
+  var wb = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
+    'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+    '<sheets><sheet name="Database rows" sheetId="1" r:id="rId1"/></sheets></workbook>';
+  var wbRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+    '</Relationships>';
+  var rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+    '</Relationships>';
+  var types = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+    '<Default Extension="xml" ContentType="application/xml"/>' +
+    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+    '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+    '</Types>';
+  return makeZipBytes([
+    {name:"[Content_Types].xml", data:bytes(types)},
+    {name:"_rels/.rels", data:bytes(rels)},
+    {name:"xl/workbook.xml", data:bytes(wb)},
+    {name:"xl/_rels/workbook.xml.rels", data:bytes(wbRels)},
+    {name:"xl/worksheets/sheet1.xml", data:bytes(sheet)}
+  ]);
 }
 function xRender(data){
   var h = '<table class="xt"><tr><th>Identifier</th><th>Visit</th><th>Annotated</th><th>Overall pattern</th></tr>';
