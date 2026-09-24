@@ -216,7 +216,9 @@
         <button class="tool on" data-tool="capillary"><span class="gl" id="glCap"></span><span class="nm">Capillary</span><span class="k">1</span></button>
         <button class="tool" data-tool="giant"><span class="gl" id="glGia"></span><span class="nm">Giant ≥50 µm</span><span class="k">2</span></button>
         <button class="tool" data-tool="dollar"><span class="gl">$</span><span class="nm">Abn. shape 1</span><span class="k">3</span></button>
-        <button class="tool" data-tool="hash"><span class="gl" style="font-size:10px">#/$</span><span class="nm">Abn. shape 2</span><span class="k">4</span></button>
+        <button class="tool" data-tool="hash"><span class="gl" style="font-size:10px">$#</span><span class="nm">Abn. shape 2</span><span class="k">4</span></button>
+        <button class="tool" data-tool="dollar2"><span class="gl" style="font-size:10px">$$</span><span class="nm">Abn. shape 3</span><span class="k">8</span></button>
+        <button class="tool" data-tool="dollar2s"><span class="gl" style="font-size:10px">$$*</span><span class="nm">Abn. shape 4</span><span class="k">9</span></button>
         <button class="tool" data-tool="triangle"><span class="gl">▲</span><span class="nm">Haemorrhage</span><span class="k">5</span></button>
         <button class="tool" data-tool="measure"><span class="gl" style="color:#E8262A">|</span><span class="nm">Measure</span><span class="k">6</span></button>
         <button class="tool wide" data-tool="scale"><span class="gl" style="color:var(--accent)">⊞</span><span class="nm">Set scale (1 mm grid)</span><span class="k">7</span></button>
@@ -235,7 +237,9 @@
         <div class="row"><span class="k">Dilations (20–49 µm)</span><span class="v" id="cDil">0</span></div>
         <div class="row"><span class="k">Giants (thick arrow)</span><span class="v" id="cGia">0</span></div>
         <div class="row"><span class="k">Abnormal shape 1 ($)</span><span class="v" id="cDol">0</span></div>
-        <div class="row"><span class="k">Abnormal shape 2 (#/$)</span><span class="v" id="cHas">0</span></div>
+        <div class="row"><span class="k">Abnormal shape 2 ($#)</span><span class="v" id="cHas">0</span></div>
+        <div class="row"><span class="k">Abnormal shape 3 ($$)</span><span class="v" id="cD2">0</span></div>
+        <div class="row"><span class="k">Abnormal shape 4 ($$*)</span><span class="v" id="cD2s">0</span></div>
         <div class="row"><span class="k">Haemorrhages</span><span class="v" id="cHem">0</span></div>
         <div class="row"><span class="k">Pattern (EULAR)</span><span class="v" id="cPat">–</span></div>
       </div>
@@ -361,14 +365,16 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null
 };
-var APP_VERSION = "4.4";
+var APP_VERSION = "4.5";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
 var COLORS = {
   black:   {capillary:"#000000", giant:"#000000", hash:"#000000", dollar:"#000000",
+            dollar2:"#000000", dollar2s:"#000000",
             triangle:"#000000", measure:"#E8262A", text:"#000000", halo:null},
   contrast:{capillary:"#22D3EE", giant:"#FFB020", hash:"#FDE047", dollar:"#F472B6",
+            dollar2:"#C084FC", dollar2s:"#FB923C",
             triangle:"#FFFFFF", measure:"#A3E635", text:"#FFFFFF", halo:"rgba(0,0,0,.75)"}
 };
 function C(){ return COLORS[S.scheme]; }
@@ -812,8 +818,10 @@ function draw(){
 function drawAnn(a, on){
   var col = C(), m = markerSize();
   if (a.type === "capillary")      drawArrow(a, col, m);
-  else if (a.type === "hash")      drawGlyph(a, "#/$", col.hash, m, 0.72);
+  else if (a.type === "hash")      drawGlyph(a, "$#", col.hash, m, 0.8);
   else if (a.type === "dollar")    drawGlyph(a, "$", col.dollar, m);
+  else if (a.type === "dollar2")   drawGlyph(a, "$$", col.dollar2, m, 0.8);
+  else if (a.type === "dollar2s")  drawGlyph(a, "$$*", col.dollar2s, m, 0.72);
   else if (a.type === "triangle")  drawTri(a, col, m);
   else if (a.type === "measure")   drawMeasure(a, col, m);
   if (on) ring(a, m);
@@ -1130,12 +1138,14 @@ $("bScaleAll").onclick = function(){
 
 /* ================= stats ================= */
 function stats(r){
-  var s = {cap:0,hash:0,dollar:0,hem:0,giant:0,dil:0,meas:[],mean:null};
+  var s = {cap:0,hash:0,dollar:0,d2:0,d2s:0,hem:0,giant:0,dil:0,meas:[],mean:null};
   var big = [], flagged = 0;
   r.ann.forEach(function(a){
     if (a.type === "capillary"){ s.cap++; if (a.giant) flagged++; }
     else if (a.type === "hash") s.hash++;
     else if (a.type === "dollar") s.dollar++;
+    else if (a.type === "dollar2") s.d2++;
+    else if (a.type === "dollar2s") s.d2s++;
     else if (a.type === "triangle") s.hem++;
     else if (a.type === "measure" && a.um != null){
       s.meas.push(a.um);
@@ -1158,7 +1168,7 @@ function patternCode(r, s){
   // EULAR pattern, applied mechanically to the counts of one image.
   // Density = capillaries in the 1 mm square (giants included).
   if (!r || !r.ann.length) return null;
-  var dens = s.cap, abn = s.hash + s.dollar;
+  var dens = s.cap, abn = s.hash + s.dollar + s.d2 + s.d2s;
   if (s.giant > 0) return dens >= 7 ? 2 : 3;          // early / active scleroderma
   if (dens <= 3 && abn > 0) return 4;                 // late scleroderma: no giants
   if (dens < 7 || s.dil > 0 || abn > 0 || s.hem > 0) return 1;
@@ -1185,7 +1195,7 @@ function syncPanel(){
   var flag = $("scaleFlag");
   if (!r){
     flag.className = "scaleflag bad"; flag.textContent = "No image";
-    ["cCap","cDil","cGia","cHas","cDol"].forEach(function(i){ $(i).textContent = "0"; });
+    ["cCap","cDil","cGia","cHas","cDol","cD2","cD2s"].forEach(function(i){ $(i).textContent = "0"; });
     $("cHem").textContent = "No";
     $("cPat").textContent = "–";
     return;
@@ -1198,7 +1208,9 @@ function syncPanel(){
   }
   var s = stats(r);
   $("cCap").textContent = s.cap; $("cDil").textContent = s.dil; $("cGia").textContent = s.giant;
-  $("cHas").textContent = s.hash; $("cDol").textContent = s.dollar; $("cHem").textContent = s.hem > 0 ? "Yes" : "No";
+  $("cHas").textContent = s.hash; $("cDol").textContent = s.dollar;
+  $("cD2").textContent = s.d2; $("cD2s").textContent = s.d2s;
+  $("cHem").textContent = s.hem > 0 ? "Yes" : "No";
   var pc = patternCode(r, s);
   $("cPat").textContent = pc == null ? "–" : PATNAMES[pc];
   $("mPat").value = r.meta.patient; $("mVis").value = r.meta.visit;
@@ -1209,7 +1221,8 @@ function syncPanel(){
     : "Nothing selected";
 }
 function labelOf(a){
-  return {capillary:"capillary", dollar:"abnormal shape 1 ($)", hash:"abnormal shape 2 (#/$)",
+  return {capillary:"capillary", dollar:"abnormal shape 1 ($)", hash:"abnormal shape 2 ($#)",
+          dollar2:"abnormal shape 3 ($$)", dollar2s:"abnormal shape 4 ($$*)",
           triangle:"haemorrhage", measure:"measurement"}[a.type] || a.type;
 }
 ["mPat","mVis","mHand","mFin","mPh"].forEach(function(id){
@@ -1270,7 +1283,7 @@ document.addEventListener("keydown", function(e){
   }
   if (e.code === "Space"){ spaceDown = true; canvas.style.cursor = "grab"; e.preventDefault(); return; }
   var map = {"v":"select","1":"capillary","2":"giant","3":"dollar","4":"hash",
-             "5":"triangle","6":"measure","7":"scale"};
+             "5":"triangle","6":"measure","7":"scale","8":"dollar2","9":"dollar2s"};
   if (map[k]){ setTool(map[k]); return; }
   if (k === "delete" || k === "backspace"){
     var r = cur();
@@ -1429,7 +1442,8 @@ function csvPair(list){
   var q = function(v){ v = (v==null?"":String(v)); return /[",;\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
   var img = [["tool_version","patient","visit","hand","finger","photo","file","px_per_mm","image_width_mm",
               "n_capillaries","n_dilations","n_giants",
-              "n_abnormal_shape_1","n_abnormal_shape_2","haemorrhages_present","pattern",
+              "n_abnormal_shape_1","n_abnormal_shape_2","n_abnormal_shape_3","n_abnormal_shape_4",
+              "haemorrhages_present","pattern",
               "n_measurements","mean_diameter_um","min_diameter_um","max_diameter_um"].join(",")];
   var mes = [["tool_version","patient","visit","hand","finger","photo","file","measurement_id",
               "diameter_um","diameter_px","class","x1","y1","x2","y2"].join(",")];
@@ -1438,7 +1452,7 @@ function csvPair(list){
     var base = [APP_VERSION,m.patient,m.visit,m.hand,m.finger,m.photo,r.name];
     img.push(base.concat([
       r.pxPerMm ? fmt(r.pxPerMm,1) : "", r.pxPerMm ? fmt(r.w/r.pxPerMm,3) : "",
-      s.cap, s.dil, s.giant, s.dollar, s.hash, s.hem > 0 ? 1 : 0,
+      s.cap, s.dil, s.giant, s.dollar, s.hash, s.d2, s.d2s, s.hem > 0 ? 1 : 0,
       r.ann.length ? patternCode(r, s) : "",
       s.meas.length, s.mean != null ? fmt(s.mean,2) : "",
       s.meas.length ? fmt(Math.min.apply(null,s.meas),2) : "",
@@ -1579,7 +1593,7 @@ function xRows(){
       SLOTS.forEach(function(sl){
         var r = slotImage(pl, v, sl);
         if (!r || !r.ann.length){ cells.push("","","","","",""); return; }
-        var st = stats(r), ab = st.hash + st.dollar, pc = patternCode(r, st);
+        var st = stats(r), ab = st.hash + st.dollar + st.d2 + st.d2s, pc = patternCode(r, st);
         nAnn++;
         cells.push(st.cap, st.giant, st.dil, ab, st.hem > 0 ? 1 : 0, pc);
         dens.push(st.cap); dil.push(st.dil); abn.push(ab); gia.push(st.giant); pat.push(pc);
