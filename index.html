@@ -361,7 +361,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null
 };
-var APP_VERSION = "4.1";
+var APP_VERSION = "4.2";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -1767,7 +1767,8 @@ async function closePatient(plabel){
     if (!ids[d.id]) return true;
     return S.images.some(function(r){ return r.dirId === d.id; });
   });
-  try { idbPut("dirs", FS.dirs.map(function(d){ return d.handle; })); } catch(e){}
+  FS.saved = FS.dirs.map(function(d){ return d.handle; });   // keep the button in sync
+  try { idbPut("dirs", FS.saved); } catch(e){}
   if (list.indexOf(curRec) >= 0){
     S.idx = -1; S.sel = null;
     if (S.images.length) select(0);
