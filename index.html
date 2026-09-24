@@ -64,6 +64,11 @@
   .node:hover .twist{border-color:#3B4C57}
   .node .nm{font-size:12px;overflow:hidden;text-overflow:ellipsis}
   .node .ct{font-family:var(--mono);font-size:10px;color:var(--dimmer);margin-left:auto;padding-left:6px}
+  .node .pclose{margin-left:auto;flex:none;font-size:10px;padding:1px 7px;border:1px solid var(--line);
+    border-radius:6px;background:var(--panel2);color:var(--dim);cursor:pointer;font-family:inherit}
+  .node .pclose:hover{color:var(--text);border-color:#3B4C57}
+  .patv{flex:none;font-size:10px;color:var(--dim);border:1px solid var(--line);border-radius:5px;
+    padding:0 5px;margin-left:2px}
   .leaf{display:flex;align-items:center;gap:7px;padding:2px 8px;cursor:pointer}
   .leaf:hover{background:var(--panel2)}
   .leaf.on{background:#12312F;box-shadow:inset 2px 0 0 var(--accent)}
@@ -161,15 +166,13 @@
 <div class="app">
   <div class="top">
     <div class="brand"><b>Capillaroscopy Annotator</b>
-      <span id="verTag">v3.1</span>
+      <span id="verTag">v4.0</span>
       <button class="btn ghost" id="bAbout" style="padding:1px 7px;font-size:11px">?</button></div>
     <div class="sep"></div>
     <label class="file btn" id="wImg">Load images<input type="file" id="fFiles" multiple accept="image/*"></label>
     <button class="btn" id="bAdd" style="display:none">Load another folder</button>
     <label class="file btn" id="wDir">Load folder<input type="file" id="fDir" webkitdirectory directory multiple></label>
     <button class="btn" id="bLink" style="display:none">Link folder</button>
-    <div class="sep"></div>
-    <button class="btn ghost" id="bProj">Projects</button>
     <div class="sep"></div>
     <button class="btn ghost" id="bCsv">CSV</button>
     <button class="btn ghost" id="bXls">Excel block</button>
@@ -234,6 +237,7 @@
         <div class="row"><span class="k">Abnormal shape 1 ($)</span><span class="v" id="cDol">0</span></div>
         <div class="row"><span class="k">Abnormal shape 2 (#/$)</span><span class="v" id="cHas">0</span></div>
         <div class="row"><span class="k">Haemorrhages</span><span class="v" id="cHem">0</span></div>
+        <div class="row"><span class="k">Pattern (EULAR)</span><span class="v" id="cPat">–</span></div>
       </div>
 
       <div class="block">
@@ -329,36 +333,17 @@
     </div>
   </div>
 </div>
-<div class="veil" id="veil3">
-  <div class="modal" style="width:580px">
-    <h3>Projects</h3>
-    <p>Stored inside the tool, on this computer. Your images stay where they are: load the
-       folder again and the project reattaches itself to the right images.</p>
-    <div style="display:flex;gap:8px;align-items:flex-end">
-      <label class="field" style="flex:1"><span>Name</span><input type="text" id="pName" placeholder="GHA008"></label>
-      <button class="btn primary" id="pSave">Save in tool</button>
-    </div>
-    <div id="pList" style="margin-top:13px;max-height:236px;overflow:auto"></div>
-    <div style="display:flex;gap:8px;margin-top:12px;border-top:1px solid var(--line);padding-top:12px">
-      <label class="file btn ghost">Open from file<input type="file" id="fProj" accept=".json"></label>
-      <button class="btn ghost" id="bSave">Save as file (.json)</button>
-    </div>
-    <div class="acts"><button class="btn ghost" id="pClose">Close</button></div>
-  </div>
-</div>
 <div class="veil" id="veil2">
   <div class="modal" style="width:660px">
-    <h3>Counts for Excel</h3>
-    <p>One block per visit: 5 rows, 16 columns, one column per image. Paste it into the
-       <b>N° of capillaries</b> cell under <b>Left Hand, 2nd</b>, first column.</p>
-    <div style="display:flex;gap:8px;align-items:flex-end">
-      <label class="field" id="xPatWrap" style="flex:1"><span>Folder / patient</span><select id="xPat"></select></label>
-      <label class="field" style="width:180px"><span>Visit</span><select id="xVis"></select></label>
-    </div>
+    <h3>Excel rows for the NVC database</h3>
+    <p>Copies <b id="xN">0</b> row(s), one per patient per visit, in the column layout of the
+       study database: Identifier, Visit, then per image (L2a to R5b) density, giants,
+       dilations, abnormal shapes, haemorrhage and pattern, followed by the summary columns.
+       Paste onto the first empty <b>Identifier</b> row of the database sheet.</p>
     <div id="xPrev" style="overflow:auto;margin-top:12px;max-height:270px"></div>
     <div class="acts">
       <button class="btn ghost" id="xClose">Close</button>
-      <button class="btn primary" id="xCopy">Copy block</button>
+      <button class="btn primary" id="xCopy">Copy rows</button>
     </div>
   </div>
 </div>
@@ -374,9 +359,9 @@ var S = {
   zoom: 1, panX: 0, panY: 0,
   sel: null, drag: null,
   scheme: "black", markerScale: 1,
-  open: {}, pending: null, slot: null
+  open: {}, pending: null
 };
-var APP_VERSION = "3.1";
+var APP_VERSION = "4.1";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -429,6 +414,15 @@ function parseMeta(path){
   if ((r = base.match(/(?:^|[_\-\s])([LR])[\s_\-]?([2-5])[\s_\-]?([AB12])(?=[_\-.]|$)/i))){
     m.hand = r[1].toUpperCase(); m.finger = r[2];
     m.photo = /[A1]/i.test(r[3]) ? "1" : "2";
+  }
+  // the same code with the letter first (LA2) or the finger first (2LA)
+  else if ((r = base.match(/(?:^|[_\-\s])([LR])[\s_\-]?([AB])[\s_\-]?([2-5])(?=[_\-.]|$)/i))){
+    m.hand = r[1].toUpperCase(); m.finger = r[3];
+    m.photo = /A/i.test(r[2]) ? "1" : "2";
+  }
+  else if ((r = base.match(/(?:^|[_\-\s])([2-5])[\s_\-]?([LR])[\s_\-]?([AB])(?=[_\-.]|$)/i))){
+    m.hand = r[2].toUpperCase(); m.finger = r[1];
+    m.photo = /A/i.test(r[3]) ? "1" : "2";
   }
   if (!m.hand){
     if (/(right|rechts)/i.test(s) || /[_\-\/\s]R[_\-\/\s]/.test(s)) m.hand = "R";
@@ -494,11 +488,10 @@ function addFiles(files){
     toast(skipped + " duplicate or annotated file" + (skipped > 1 ? "s" : "") + " skipped.");
   }, 900);
   if (!arr.length) return;
-  var first = S.images.length, pending = arr.length;
+  var first = S.images.length;
   arr.forEach(function(f){
-    var url = URL.createObjectURL(f), im = new Image();
     var path = pathOf(f);
-    var rec = {id:uid(), name:f.name, path:path, url:url, img:im, w:0, h:0, ready:false,
+    var rec = {id:uid(), name:f.name, path:path, file:f, img:null, w:0, h:0, ready:false,
                dirId:f._dirId || null,
                pxPerMm:null, calib:null, meta:parseMeta(path), ann:[], undo:[], redo:[]};
     var saved = S.pending && (S.pending[path] || S.pending[f.name]);
@@ -507,31 +500,83 @@ function addFiles(files){
       rec.calib = saved.calib || null; if (saved.meta) rec.meta = saved.meta;
     }
     S.images.push(rec);
-    var done = function(){
-      pending--;
-      if (pending === 0 && S.idx < 0){ select(first); return; }
-      renderTree();
-      if (S.images[S.idx] === rec) draw();
-    };
+    scanQ.push(rec);
+  });
+  if (S.idx < 0) select(first);
+  renderTreeSoon();
+  scanNext();
+  $("drop").style.display = "none";
+}
+
+/* Images are examined a few at a time and immediately released again: only the
+   dimensions and a small thumbnail stay in memory. The full bitmap is loaded
+   when an image is opened, and dropped when another one is opened. This keeps
+   memory flat no matter how many patients are in the tree. */
+var scanQ = [], scanBusy = 0;
+function scanNext(){
+  while (scanBusy < 2 && scanQ.length) scanOne(scanQ.shift());
+}
+function scanOne(rec){
+  scanBusy++;
+  var url = URL.createObjectURL(rec.file), im = new Image();
+  var finish = function(){
+    scanBusy--;
+    renderTreeSoon();
+    if (S.images[S.idx] === rec){ if (rec.ready) fit(); else draw(); }
+    scanNext();
+  };
+  im.onload = function(){
+    if (!im.naturalWidth){ im.onerror(); return; }
+    rec.w = im.naturalWidth; rec.h = im.naturalHeight; rec.ready = true;
+    var cv = thumb(rec), c2 = cv.getContext("2d");
+    var k = Math.min(68/rec.w, 52/rec.h);
+    c2.drawImage(im, (68-rec.w*k)/2, (52-rec.h*k)/2, rec.w*k, rec.h*k);
+    if (!rec.dataUrl) URL.revokeObjectURL(url);
+    im.src = "";                          // release the decoded bitmap
+    finish();
+  };
+  im.onerror = function(){
+    if (!rec.retried){                    // sandboxed viewers can block blob: URLs
+      rec.retried = true;
+      var fr = new FileReader();
+      fr.onload = function(){ rec.dataUrl = fr.result; im.src = fr.result; };
+      fr.onerror = function(){ rec.broken = true; URL.revokeObjectURL(url); finish(); };
+      fr.readAsDataURL(rec.file); return;
+    }
+    rec.broken = true; finish();
+  };
+  im.src = url;
+}
+function ensureLoaded(r){
+  if (!r || r.broken) return Promise.resolve(null);
+  if (r.img) return Promise.resolve(r.img);
+  if (r.loading) return r.loading;
+  r.loading = new Promise(function(res){
+    var url = r.dataUrl || URL.createObjectURL(r.file);
+    var im = new Image();
     im.onload = function(){
-      if (!im.naturalWidth){ im.onerror(); return; }
-      rec.w = im.naturalWidth; rec.h = im.naturalHeight; rec.ready = true;
-      if (S.images[S.idx] === rec) fit();
-      done();
+      r.img = im; if (!r.dataUrl) r.tmpUrl = url;
+      r.loading = null; res(im);
     };
     im.onerror = function(){
-      if (!rec.retried){                       // sandboxed viewers can block blob: URLs
-        rec.retried = true;
-        var fr = new FileReader();
-        fr.onload = function(){ rec.url = fr.result; im.src = fr.result; };
-        fr.onerror = function(){ rec.broken = true; done(); };
-        fr.readAsDataURL(f); return;
-      }
-      rec.broken = true; done();
+      r.broken = true; r.loading = null;
+      if (!r.dataUrl) URL.revokeObjectURL(url);
+      res(null); drawSoon();
     };
     im.src = url;
   });
-  $("drop").style.display = "none";
+  return r.loading;
+}
+function unloadHeavy(r){
+  if (!r) return;
+  r.img = null; r.levels = null;
+  if (r.tmpUrl){ try { URL.revokeObjectURL(r.tmpUrl); } catch(e){} r.tmpUrl = null; }
+}
+var treeRaf = false;
+function renderTreeSoon(){
+  if (treeRaf) return;
+  treeRaf = true;
+  requestAnimationFrame(function(){ treeRaf = false; renderTree(); });
 }
 
 function select(i){
@@ -539,7 +584,10 @@ function select(i){
   S.idx = i; S.sel = null;
   freeLevels(i);
   openPathTo(S.images[i]);
-  fit(); renderTree(); syncPanel();
+  fit();
+  var r = S.images[i];
+  if (!r.ready || !r.img) draw();          // placeholder until the bitmap arrives
+  renderTree(); syncPanel();
 }
 
 /* ================= tree ================= */
@@ -596,9 +644,22 @@ function walk(parent, node, label, path, depth){
   var row = document.createElement("div");
   row.className = "node";
   row.style.paddingLeft = (8 + depth*13) + "px";
+  var badge = "";
+  if (depth === 1){
+    var pv = visitPatternName(path);
+    if (pv) badge = '<span class="patv">' + esc(pv) + '</span>';
+  }
   row.innerHTML = '<i class="twist">' + (open ? "−" : "+") + '</i>' +
-                  '<span class="nm">' + esc(label) + '</span>' +
+                  '<span class="nm">' + esc(label) + '</span>' + badge +
                   '<span class="ct">' + countLeaves(node) + '</span>';
+  if (depth === 0){
+    var xb = document.createElement("button");
+    xb.className = "pclose"; xb.textContent = "Save and close";
+    xb.title = "Save this patient's project.json into its folder, then remove the patient from the list";
+    xb.onclick = function(ev){ ev.stopPropagation(); closePatient(label); };
+    row.insertBefore(xb, row.querySelector(".ct"));
+    row.querySelector(".ct").style.marginLeft = "6px";
+  }
   row.onclick = function(){ S.open[path] = !S.open[path]; renderTree(); };
   parent.appendChild(row);
   if (!open) return;
@@ -612,17 +673,12 @@ function walk(parent, node, label, path, depth){
   }
 }
 function leafName(i){ return keyOf(S.images[i]).leaf; }
-function thumb(r){                       // rendered once, then reused on every tree rebuild
-  if (r.thumb) return r.thumb;
-  var cv = document.createElement("canvas");
-  cv.width = 68; cv.height = 52;
-  if (r.ready){
-    var c2 = cv.getContext("2d");
-    var k = Math.min(68/r.w, 52/r.h);
-    c2.drawImage(r.img, (68-r.w*k)/2, (52-r.h*k)/2, r.w*k, r.h*k);
-    r.thumb = cv;                        // only cache once the image has decoded
+function thumb(r){                       // filled once during the scan, then reused
+  if (!r.thumb){
+    r.thumb = document.createElement("canvas");
+    r.thumb.width = 68; r.thumb.height = 52;
   }
-  return cv;
+  return r.thumb;
 }
 function leafRow(i, depth){
   var r = S.images[i];
@@ -686,8 +742,8 @@ function levelFor(r, zoom){              // smallest copy that still covers the 
   for (var i = 0; i < L.length; i++) if (L[i].scale >= zoom) best = L[i];
   return best;
 }
-function freeLevels(keep){               // only the visible image keeps its pyramid
-  S.images.forEach(function(o, i){ if (i !== keep) o.levels = null; });
+function freeLevels(keep){               // only the visible image keeps its bitmap and pyramid
+  S.images.forEach(function(o, i){ if (i !== keep) unloadHeavy(o); });
 }
 function markerFor(r){ return Math.hypot(r.w, r.h) * 0.0168 * S.markerScale; }
 function markerSize(){ var r = cur(); return r ? markerFor(r) : 20; }
@@ -712,7 +768,8 @@ function draw(){
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.clearRect(0,0,W,H);
   var r = cur();
-  if (!r || !r.ready){
+  if (!r || !r.ready || !r.img){
+    if (r && !r.broken && r.ready) ensureLoaded(r).then(function(ok){ if (ok){ drawSoon(); } });
     if (r){
       ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "13px " + UIFONT;
       ctx.fillStyle = r.broken ? "#FFB020" : "#5E7079";
@@ -1077,6 +1134,31 @@ function stats(r){
   if (s.meas.length) s.mean = s.meas.reduce(function(x,y){return x+y;},0)/s.meas.length;
   return s;
 }
+var PATNAMES = ["Normal","Non-specific","Early","Active","Late"];
+function patternCode(r, s){
+  // EULAR pattern, applied mechanically to the counts of one image.
+  // Density = capillaries in the 1 mm square (giants included).
+  if (!r || !r.ann.length) return null;
+  var dens = s.cap, abn = s.hash + s.dollar;
+  if (s.giant > 0) return dens >= 7 ? 2 : 3;          // early / active scleroderma
+  if (dens <= 3 && abn > 0) return 4;                 // late scleroderma: no giants
+  if (dens < 7 || s.dil > 0 || abn > 0 || s.hem > 0) return 1;
+  return 0;
+}
+function visitPatternName(path){
+  var cut = path.indexOf("/");
+  if (cut < 0) return null;
+  var p = path.slice(0, cut), v = path.slice(cut + 1);
+  var worst = null;
+  S.images.forEach(function(r){
+    if (!r.ann.length) return;
+    var k = keyOf(r);
+    if (k.p !== p || k.v !== v) return;
+    var c = patternCode(r, stats(r));
+    if (c != null && (worst == null || c > worst)) worst = c;
+  });
+  return worst == null ? null : PATNAMES[worst];
+}
 function syncPanel(){
   var r = cur();
   $("counter").textContent = (S.idx+1) + " / " + S.images.length;
@@ -1084,7 +1166,9 @@ function syncPanel(){
   var flag = $("scaleFlag");
   if (!r){
     flag.className = "scaleflag bad"; flag.textContent = "No image";
-    ["cCap","cDil","cGia","cHas","cDol","cHem"].forEach(function(i){ $(i).textContent = "0"; });
+    ["cCap","cDil","cGia","cHas","cDol"].forEach(function(i){ $(i).textContent = "0"; });
+    $("cHem").textContent = "No";
+    $("cPat").textContent = "–";
     return;
   }
   if (r.pxPerMm){
@@ -1095,7 +1179,9 @@ function syncPanel(){
   }
   var s = stats(r);
   $("cCap").textContent = s.cap; $("cDil").textContent = s.dil; $("cGia").textContent = s.giant;
-  $("cHas").textContent = s.hash; $("cDol").textContent = s.dollar; $("cHem").textContent = s.hem;
+  $("cHas").textContent = s.hash; $("cDol").textContent = s.dollar; $("cHem").textContent = s.hem > 0 ? "Yes" : "No";
+  var pc = patternCode(r, s);
+  $("cPat").textContent = pc == null ? "–" : PATNAMES[pc];
   $("mPat").value = r.meta.patient; $("mVis").value = r.meta.visit;
   $("mHand").value = r.meta.hand; $("mFin").value = r.meta.finger; $("mPh").value = r.meta.photo;
   $("sSel").textContent = S.sel
@@ -1160,8 +1246,7 @@ document.addEventListener("keydown", function(e){
   if ((e.ctrlKey||e.metaKey) && k === "s"){
     e.preventDefault();
     if (FS.dirs.length) fsSave().then(function(ok){ if (ok) toast("Saved."); });
-    else if (S.slot) saveSlot(S.slot);
-    else $("bProj").click();
+    else toast("Load a folder first: work saves into it automatically.");
     return;
   }
   if (e.code === "Space"){ spaceDown = true; canvas.style.cursor = "grab"; e.preventDefault(); return; }
@@ -1214,112 +1299,13 @@ function applyProject(data, merge){
   S.sel = null; draw(); syncPanel(); renderTree();
   return hit;
 }
-$("fProj").onchange  = function(){
-  var f = this.files[0]; if (!f) return;
-  var fr = new FileReader();
-  fr.onload = function(){
-    try {
-      var hit = applyProject(JSON.parse(fr.result));
-      toast(hit ? hit + " images matched." : "Project loaded. Now load your image folder.");
-    } catch(err){ toast("Could not read the project file."); }
-  };
-  fr.readAsText(f); this.value = "";
-};
-
-/* ================= in-app project store ================= */
-var STORE = "capann:", PKEY = STORE + "p:", dirty = false;
-var HASSTORE = (function(){
-  try { localStorage.setItem(STORE+"t","1"); localStorage.removeItem(STORE+"t"); return true; }
-  catch(e){ return false; }
-})();
+/* ================= save state ================= */
+var dirty = false;
 function touch(){ dirty = true; }
-function slotNames(){
-  var out = [];
-  if (!HASSTORE) return out;
-  for (var i=0;i<localStorage.length;i++){
-    var k = localStorage.key(i);
-    if (k && k.indexOf(PKEY) === 0) out.push(k.slice(PKEY.length));
-  }
-  return out.sort(natCmp);
-}
-function saveSlot(name, quiet){
-  if (!HASSTORE) return toast("This browser blocks storage. Use Save as file.");
-  try {
-    localStorage.setItem(PKEY + name, projectJson());
-    localStorage.setItem(STORE + "last", name);
-    S.slot = name; dirty = false; markSaved();
-    if (!quiet) toast('Saved as "' + name + '".');
-  } catch(e){ toast("Storage is full. Delete an old project or save as file."); }
-}
-function markSaved(){
-  var d = new Date(), p = function(n){ return (n<10?"0":"")+n; };
-  $("sSave").textContent = S.slot
-    ? 'Saved: ' + S.slot + ' · ' + p(d.getHours()) + ":" + p(d.getMinutes())
-    : "Not saved";
-}
-function renderProjects(){
-  var box = $("pList"), names = slotNames();
-  if (!HASSTORE){
-    box.innerHTML = '<div class="empty">This browser blocks local storage.<br>' +
-      'Open the tool in Chrome, or use Save as file.</div>';
-    return;
-  }
-  if (!names.length){ box.innerHTML = '<div class="empty">Nothing saved in the tool yet.</div>'; return; }
-  box.innerHTML = "";
-  names.forEach(function(n){
-    var meta = {n:0, saved:""};
-    try { var d = JSON.parse(localStorage.getItem(PKEY+n));
-          meta.n = (d.images||[]).length; meta.saved = (d.saved||"").slice(0,16).replace("T"," "); } catch(e){}
-    var row = document.createElement("div");
-    row.className = "prow" + (n === S.slot ? " on" : "");
-    row.innerHTML = '<div><div class="pn">' + esc(n) + '</div>' +
-      '<div class="pm">' + meta.n + " images · " + esc(meta.saved) + '</div></div>' +
-      '<div class="sp"><button class="btn" data-a="open">Open</button>' +
-      '<button class="btn" data-a="del">Delete</button></div>';
-    row.querySelector('[data-a=open]').onclick = function(){
-      try {
-        var hit = applyProject(JSON.parse(localStorage.getItem(PKEY+n)));
-        S.slot = n; dirty = false; markSaved();
-        localStorage.setItem(STORE+"last", n);
-        $("pName").value = n; renderProjects();
-        toast(hit ? hit + " images matched." : 'Project "' + n + '" loaded. Now load your image folder.');
-      } catch(e){ toast("Could not read this project."); }
-    };
-    row.querySelector('[data-a=del]').onclick = function(){
-      if (row.dataset.confirm !== "1"){
-        row.dataset.confirm = "1";
-        this.textContent = "Sure?";
-        setTimeout(function(){ row.dataset.confirm = ""; if (row.querySelector('[data-a=del]')) row.querySelector('[data-a=del]').textContent = "Delete"; }, 3000);
-        return;
-      }
-      localStorage.removeItem(PKEY+n);
-      if (S.slot === n){ S.slot = null; markSaved(); }
-      renderProjects();
-    };
-    box.appendChild(row);
-  });
-}
-$("bProj").onclick = function(){
-  $("pName").value = S.slot || suggestName();
-  renderProjects(); $("veil3").classList.add("on");
-};
-function suggestName(){
-  var r = cur();
-  return r && r.meta.patient ? r.meta.patient : "project";
-}
-$("pClose").onclick = function(){ $("veil3").classList.remove("on"); };
-$("pSave").onclick = function(){
-  var n = $("pName").value.trim();
-  if (!n) return toast("Give the project a name.");
-  if (!S.images.length) return toast("No images loaded yet.");
-  saveSlot(n); renderProjects();
-};
-$("veil3").addEventListener("keydown", function(e){ if (e.key === "Escape") $("pClose").click(); });
 
 setInterval(function(){
   if (!dirty) return;
   if (FS.dirs.length) fsSave();
-  else if (S.slot && HASSTORE) saveSlot(S.slot, true);
 }, 4000);
 window.addEventListener("beforeunload", function(e){
   if (dirty && S.images.length){ e.preventDefault(); e.returnValue = ""; }
@@ -1397,26 +1383,34 @@ function leafFile(r){                         // hand, finger and image are alre
   if (code && stem.toUpperCase().indexOf(code.toUpperCase()) < 0) stem += "_" + code;
   return stem + "_annotated.png";
 }
-function renderPng(i){
-  var keepIdx = S.idx, keepCtx = ctx, keepZ = S.zoom, keepX = S.panX, keepY = S.panY, keepSel = S.sel;
-  S.idx = i;
+function renderPngBytes(i){               // loads the image, draws, and releases it again
   var r = S.images[i];
-  var off = document.createElement("canvas");
-  off.width = r.w; off.height = r.h;
-  ctx = off.getContext("2d");
-  S.zoom = 1; S.panX = 0; S.panY = 0; S.sel = null;
-  ctx.drawImage(r.img, 0, 0);
-  r.ann.forEach(function(a){ drawAnn(a, false); });
-  var url = off.toDataURL("image/png");
-  ctx = keepCtx; S.idx = keepIdx; S.zoom = keepZ; S.panX = keepX; S.panY = keepY; S.sel = keepSel;
-  return url;
+  return ensureLoaded(r).then(function(im){
+    if (!im) return null;
+    var keepIdx = S.idx, keepCtx = ctx, keepZ = S.zoom, keepX = S.panX, keepY = S.panY, keepSel = S.sel;
+    S.idx = i;
+    var off = document.createElement("canvas");
+    off.width = r.w; off.height = r.h;
+    ctx = off.getContext("2d");
+    S.zoom = 1; S.panX = 0; S.panY = 0; S.sel = null;
+    ctx.drawImage(im, 0, 0);
+    r.ann.forEach(function(a){ drawAnn(a, false); });
+    ctx = keepCtx; S.idx = keepIdx; S.zoom = keepZ; S.panX = keepX; S.panY = keepY; S.sel = keepSel;
+    return new Promise(function(res){
+      off.toBlob(function(b){
+        if (i !== S.idx) unloadHeavy(r);
+        if (!b) return res(null);
+        b.arrayBuffer().then(function(ab){ res(new Uint8Array(ab)); });
+      }, "image/png");
+    });
+  });
 }
 function csvPair(list){
   list = list || S.images;
   var q = function(v){ v = (v==null?"":String(v)); return /[",;\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
   var img = [["tool_version","patient","visit","hand","finger","photo","file","px_per_mm","image_width_mm",
               "n_capillaries","n_dilations","n_giants",
-              "n_abnormal_shape_1","n_abnormal_shape_2","n_microhaemorrhages",
+              "n_abnormal_shape_1","n_abnormal_shape_2","haemorrhages_present","pattern",
               "n_measurements","mean_diameter_um","min_diameter_um","max_diameter_um"].join(",")];
   var mes = [["tool_version","patient","visit","hand","finger","photo","file","measurement_id",
               "diameter_um","diameter_px","class","x1","y1","x2","y2"].join(",")];
@@ -1425,7 +1419,8 @@ function csvPair(list){
     var base = [APP_VERSION,m.patient,m.visit,m.hand,m.finger,m.photo,r.name];
     img.push(base.concat([
       r.pxPerMm ? fmt(r.pxPerMm,1) : "", r.pxPerMm ? fmt(r.w/r.pxPerMm,3) : "",
-      s.cap, s.dil, s.giant, s.dollar, s.hash, s.hem,
+      s.cap, s.dil, s.giant, s.dollar, s.hash, s.hem > 0 ? 1 : 0,
+      r.ann.length ? patternCode(r, s) : "",
       s.meas.length, s.mean != null ? fmt(s.mean,2) : "",
       s.meas.length ? fmt(Math.min.apply(null,s.meas),2) : "",
       s.meas.length ? fmt(Math.max.apply(null,s.meas),2) : ""
@@ -1440,26 +1435,20 @@ function csvPair(list){
   });
   return {image: "\ufeff"+img.join("\n"), meas: "\ufeff"+mes.join("\n")};
 }
+function serializeRec(r){
+  if (r.w === undefined) return r;              // already serialized (a patient closed earlier)
+  return {name:r.name, path:r.path, folder:folderPath(r), width:r.w, height:r.h,
+          pxPerMm:r.pxPerMm, calib:r.calib, meta:r.meta, ann:r.ann};
+}
 function projectJson(list){
   list = list || S.images;
   return JSON.stringify({
     format:"capillaroscopy-annotator", version:2, app_version:APP_VERSION,
     saved:new Date().toISOString(),
     thresholds:{giant_um:GIANT, dilated_um:DILAT},
-    images: list.map(function(r){
-      return {name:r.name, path:r.path, folder:folderPath(r), width:r.w, height:r.h,
-              pxPerMm:r.pxPerMm, calib:r.calib, meta:r.meta, ann:r.ann};
-    })
+    images: list.map(serializeRec)
   }, null, 1);
 }
-function saveProject(){
-  if (!S.images.length) return toast("Nothing to save.");
-  dl("capillaroscopy_project_" + stamp() + ".json",
-     new Blob([projectJson()], {type:"application/json"}));
-  toast("Project saved.");
-}
-$("bSave").onclick = saveProject;
-
 $("bCsv").onclick = function(){
   if (!S.images.length) return toast("Nothing to export.");
   var c = csvPair();
@@ -1492,15 +1481,19 @@ function exportZip(idxs, zipName){
       return;
     }
     var i = idxs[k], r = S.images[i];
-    if (r.ready){
-      var name = folderPath(r) + "/" + leafFile(r);
-      if (used[name]) name = name.replace(/\.png$/, " (" + (++used[name]) + ").png");
-      else used[name] = 1;
-      files.push({name:name, data:b64ToBytes(renderPng(i).split(",")[1])});
-    }
+    if (!r.ready && !r.broken){ setTimeout(step, 150); return; }   // scan still running
     k++;
     toast("Processing images " + k + " / " + idxs.length);
-    setTimeout(step, 0);
+    if (r.broken){ setTimeout(step, 0); return; }
+    renderPngBytes(i).then(function(u8){
+      if (u8){
+        var name = folderPath(r) + "/" + leafFile(r);
+        if (used[name]) name = name.replace(/\.png$/, " (" + (++used[name]) + ").png");
+        else used[name] = 1;
+        files.push({name:name, data:u8});
+      }
+      setTimeout(step, 0);
+    });
   };
   toast("Export started…");
   setTimeout(step, 30);
@@ -1511,72 +1504,107 @@ $("bZip").onclick = function(){
   exportZip(S.images.map(function(_, i){ return i; }), "capillaroscopy_" + stamp() + ".zip");
 };
 
-/* ================= excel block ================= */
-var XROWS = [
-  {k:"N° of capillaries",     f:function(s){ return s.cap; }},
-  {k:"N° of dilations",       f:function(s){ return s.dil; }},
-  {k:"N° of giants",          f:function(s){ return s.giant; }},
-  {k:"N° of abnormal shapes", f:function(s){ return s.hash + s.dollar; }},
-  {k:"N° microhaemorrhages",  f:function(s){ return s.hem; }}
-];
-function xBuild(){
-  var p = $("xPat").value, v = $("xVis").value;
-  return XROWS.map(function(row){
-    var cells = [];
-    ["L","R"].forEach(function(h){
-      ["2","3","4","5"].forEach(function(f){
-        ["1","2"].forEach(function(ph){
-          var one = S.images.filter(function(r){
-            return r.meta.patient === p && r.meta.visit === v &&
-                   r.meta.hand === h && r.meta.finger === f && r.meta.photo === ph;
-          })[0];
-          cells.push(one ? String(row.f(stats(one))) : "");
-        });
+/* ================= excel rows (study database layout) ================= */
+var SLOTS = (function(){
+  var out = [];
+  ["L","R"].forEach(function(h){
+    ["2","3","4","5"].forEach(function(f){
+      ["1","2"].forEach(function(p){ out.push({h:h, f:f, p:p}); });
+    });
+  });
+  return out;                                    // L2a, L2b, L3a … R5b
+})();
+function slotImage(pl, v, sl){
+  var cand = S.images.filter(function(r){
+    var m = r.meta;
+    return groupLabel(m.patient) === pl && m.visit === v &&
+           m.hand === sl.h && m.finger === sl.f && m.photo === sl.p;
+  });
+  if (!cand.length) return null;
+  var ann = cand.filter(function(r){ return r.ann.length; });
+  return ann[0] || cand[0];
+}
+function meanSd(a){                              // sample SD (n-1), as in the study sheet
+  if (!a.length) return "";
+  var m = a.reduce(function(x,y){ return x+y; }, 0) / a.length;
+  var v = a.length > 1
+    ? a.reduce(function(x,y){ return x + (y-m)*(y-m); }, 0) / (a.length - 1)
+    : 0;
+  return fmt(m,2) + " (" + fmt(Math.sqrt(v),2) + ")";
+}
+function median(a){
+  if (!a.length) return "";
+  var b = a.slice().sort(function(x,y){ return x-y; });
+  var mid = b.length >> 1;
+  var m = b.length % 2 ? b[mid] : (b[mid-1] + b[mid]) / 2;
+  return m % 1 ? fmt(m,1) : String(m);
+}
+function xRows(){
+  var rows = [], noVisit = 0, pats = [];
+  S.images.forEach(function(r){
+    var pl = groupLabel(r.meta.patient);
+    if (pats.indexOf(pl) < 0) pats.push(pl);
+    if (r.ann.length && !r.meta.visit) noVisit++;
+  });
+  pats.sort(natCmp);
+  pats.forEach(function(pl){
+    var vs = [];
+    S.images.forEach(function(r){
+      if (groupLabel(r.meta.patient) === pl && r.meta.visit && vs.indexOf(r.meta.visit) < 0)
+        vs.push(r.meta.visit);
+    });
+    vs.sort(natCmp);
+    vs.forEach(function(v){
+      var cells = [], dens = [], dil = [], abn = [], gia = [], pat = [];
+      var anyA = 0, anyH = 0, anyG = 0, nAnn = 0;
+      SLOTS.forEach(function(sl){
+        var r = slotImage(pl, v, sl);
+        if (!r || !r.ann.length){ cells.push("","","","","",""); return; }
+        var st = stats(r), ab = st.hash + st.dollar, pc = patternCode(r, st);
+        nAnn++;
+        cells.push(st.cap, st.giant, st.dil, ab, st.hem > 0 ? 1 : 0, pc);
+        dens.push(st.cap); dil.push(st.dil); abn.push(ab); gia.push(st.giant); pat.push(pc);
+        if (ab) anyA = 1; if (st.hem) anyH = 1; if (st.giant) anyG = 1;
+      });
+      if (!nAnn) return;                         // a visit with nothing annotated gets no row
+      var overall = Math.max.apply(null, pat);
+      rows.push({
+        pl: pl, v: v, n: nAnn, overall: overall,
+        cells: [pl, "visit " + v].concat(cells, [
+          meanSd(dens), median(dens),
+          meanSd(dil),  median(dil),
+          meanSd(abn),  median(abn),
+          anyA, anyH,
+          meanSd(gia),  median(gia),
+          anyG, overall
+        ])
       });
     });
-    return {label:row.k, cells:cells};
   });
+  return {rows: rows, noVisit: noVisit};
 }
-function xRender(){
-  var data = xBuild();
-  var h = '<table class="xt"><tr><th></th><th colspan="8">Left Hand</th><th colspan="8">Right Hand</th></tr>' +
-          '<tr><th></th>' + ["2nd","3rd","4th","5th","2nd","3rd","4th","5th"].map(function(f){
-            return '<th colspan="2">' + f + '</th>'; }).join("") + '</tr>' +
-          '<tr><th></th>' + new Array(9).join('<th>1</th><th>2</th>') + '</tr>';
-  data.forEach(function(r){
-    h += '<tr><td class="lbl">' + esc(r.label) + '</td>' +
-         r.cells.map(function(c){ return '<td class="val">' + (c === "" ? "·" : esc(c)) + '</td>'; }).join("") + '</tr>';
+function xRender(data){
+  var h = '<table class="xt"><tr><th>Identifier</th><th>Visit</th><th>Annotated</th><th>Overall pattern</th></tr>';
+  data.rows.forEach(function(r){
+    h += '<tr><td class="lbl">' + esc(r.pl) + '</td><td class="val">visit ' + esc(r.v) + '</td>' +
+         '<td class="val">' + r.n + ' / 16</td><td class="val">' + esc(PATNAMES[r.overall]) + '</td></tr>';
   });
   $("xPrev").innerHTML = h + "</table>";
 }
-function xTsv(){
-  return xBuild().map(function(r){ return r.cells.join("\t"); }).join("\n");
-}
-function fillSelect(el, values, want){
-  el.innerHTML = values.map(function(v){ return '<option>' + esc(v) + '</option>'; }).join("");
-  if (want && values.indexOf(want) >= 0) el.value = want;
-}
 $("bXls").onclick = function(){
   if (!S.images.length) return toast("No images loaded yet.");
-  var pats = [], viss = ["1","2"];               // visit 1 and 2 are always offered
-  S.images.forEach(function(r){
-    if (r.meta.patient && pats.indexOf(r.meta.patient) < 0) pats.push(r.meta.patient);
-    if (r.meta.visit && viss.indexOf(r.meta.visit) < 0) viss.push(r.meta.visit);
-  });
-  if (!pats.length) pats = [""];
-  pats.sort(natCmp); viss.sort(natCmp);
-  var r0 = cur();
-  fillSelect($("xPat"), pats, r0 && r0.meta.patient);
-  fillSelect($("xVis"), viss, r0 && r0.meta.visit);
-  $("xPatWrap").style.display = pats.length > 1 ? "" : "none";
-  xRender();
+  var data = xRows();
+  if (!data.rows.length) return toast("No annotated images yet.");
+  $("xN").textContent = data.rows.length;
+  xRender(data);
+  if (data.noVisit) toast(data.noVisit + " annotated image(s) without a visit were left out.");
   $("veil2").classList.add("on");
 };
-["xPat","xVis"].forEach(function(id){ $(id).onchange = xRender; });
 $("xClose").onclick = function(){ $("veil2").classList.remove("on"); };
 $("veil2").addEventListener("keydown", function(e){ if (e.key === "Escape") $("xClose").click(); });
 $("xCopy").onclick = function(){
-  var text = xTsv();
+  var text = xRows().rows.map(function(r){ return r.cells.join("\t"); }).join("\n");
+  var done = function(){ toast("Rows copied. Paste onto the first empty row of the database sheet."); };
   var fallback = function(){
     var ta = document.createElement("textarea");
     ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
@@ -1584,12 +1612,10 @@ $("xCopy").onclick = function(){
     var ok = false;
     try { ok = document.execCommand("copy"); } catch(e){}
     ta.remove();
-    toast(ok ? "Block copied. Paste into Left Hand, 2nd." : "Copy failed; select the block manually.");
+    if (ok) done(); else toast("Copy failed; try again in Chrome.");
   };
   if (navigator.clipboard && window.isSecureContext){
-    navigator.clipboard.writeText(text).then(function(){
-      toast("Block copied. Paste into Left Hand, 2nd.");
-    }, fallback);
+    navigator.clipboard.writeText(text).then(done, fallback);
   } else fallback();
 };
 
@@ -1642,7 +1668,7 @@ function clearWorkspace(){
   S.images.forEach(function(r){
     if (r.url && r.url.indexOf("blob:") === 0){ try { URL.revokeObjectURL(r.url); } catch(e){} }
   });
-  S.images = []; S.idx = -1; S.sel = null; S.pending = null; S.slot = null;
+  S.images = []; S.idx = -1; S.sel = null; S.pending = null;
   FS.dirs = [];
   dirty = false;
   $("sSave").textContent = "Not saved";
@@ -1686,16 +1712,71 @@ async function fsSave(){
   try {
     for (var k = 0; k < FS.dirs.length; k++){
       var d = FS.dirs[k];
-      var list = S.images.filter(function(r){ return r.dirId === d.id; });
+      var list = S.images.filter(function(r){ return r.dirId === d.id; })
+                         .map(serializeRec).concat(d.extra || []);
       if (!list.length) continue;
       var fh = await d.handle.getFileHandle("project.json", {create:true});
       var w = await fh.createWritable();
-      await w.write(projectJson(list)); await w.close();  // each folder gets only its own patients
+      await w.write(projectJson(list)); await w.close();  // live work plus patients closed earlier
     }
-    dirty = false; S.slot = null; markSavedDir();
+    dirty = false; markSavedDir();
     return true;
   } catch(e){ toast("Could not write to the folder. Check permissions."); return false; }
   finally { FS.busy = false; }
+}
+async function closePatient(plabel){
+  var list = S.images.filter(function(r){ return groupLabel(r.meta.patient) === plabel; });
+  if (!list.length) return;
+  var linked = list.filter(function(r){ return r.dirId; });
+  var loose = list.length - linked.length;
+  if (!linked.length){
+    if (!confirm("No folder is linked for " + plabel + ", so nothing can be saved.\n" +
+                 "Its annotations will be LOST. Close anyway?")) return;
+  } else if (loose){
+    if (!confirm(loose + " image(s) of " + plabel + " have no linked folder and cannot be saved.\n" +
+                 "Close anyway?")) return;
+  }
+  var ids = {};
+  linked.forEach(function(r){ ids[r.dirId] = 1; });
+  if (linked.length){
+    var prevLen = {};
+    FS.dirs.forEach(function(d){
+      if (!ids[d.id]) return;
+      d.extra = d.extra || [];
+      prevLen[d.id] = d.extra.length;
+      d.extra = d.extra.concat(
+        list.filter(function(r){ return r.dirId === d.id; }).map(serializeRec));
+    });
+    var ok = await fsSave();
+    if (!ok){ await new Promise(function(res){ setTimeout(res, 500); }); ok = await fsSave(); }
+    if (!ok){
+      FS.dirs.forEach(function(d){                // undo, so nothing is stored twice later
+        if (ids[d.id] && d.extra) d.extra.length = prevLen[d.id];
+      });
+      toast("Could not save " + plabel + ". Nothing was closed.");
+      return;
+    }
+  }
+  var curRec = cur();
+  S.images = S.images.filter(function(r){
+    if (list.indexOf(r) < 0) return true;
+    unloadHeavy(r); r.thumb = null; r.row = null;
+    return false;
+  });
+  FS.dirs = FS.dirs.filter(function(d){           // release folders with nothing left open
+    if (!ids[d.id]) return true;
+    return S.images.some(function(r){ return r.dirId === d.id; });
+  });
+  try { idbPut("dirs", FS.dirs.map(function(d){ return d.handle; })); } catch(e){}
+  if (list.indexOf(curRec) >= 0){
+    S.idx = -1; S.sel = null;
+    if (S.images.length) select(0);
+  } else {
+    S.idx = S.images.indexOf(curRec);
+  }
+  if (!S.images.length){ $("drop").style.display = "flex"; draw(); }
+  updateLinkBtn(); renderTree(); syncPanel();
+  toast(linked.length ? plabel + " saved and closed." : plabel + " closed.");
 }
 function dirNames(){
   return FS.dirs.map(function(d){ return d.handle.name; }).join(", ");
@@ -1767,10 +1848,10 @@ resize(); setTool("capillary"); syncPanel(); renderTree();
 updateLinkBtn();
 if (FS.on){
   idbGet("dirs").then(function(dirs){
-    if (!dirs || !dirs.length){
+    if (dirs === undefined || dirs === null){
       return idbGet("dir").then(function(one){ return one ? [one] : null; });  // pre-3.0 projects
     }
-    return dirs;
+    return dirs;                                   // an empty list means: everything was closed
   }).then(function(dirs){
     if (!dirs || !dirs.length) return;
     FS.saved = dirs; updateLinkBtn();
@@ -1786,16 +1867,6 @@ if (FS.on){
 }
 if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0){
   navigator.serviceWorker.register("sw.js").catch(function(){});
-}
-if (HASSTORE){
-  var last = localStorage.getItem(STORE + "last");
-  if (last && localStorage.getItem(PKEY + last)){
-    try {
-      applyProject(JSON.parse(localStorage.getItem(PKEY + last)));
-      S.slot = last; markSaved();
-      setTimeout(function(){ toast('Project "' + last + '" is ready. Load your image folder.'); }, 400);
-    } catch(e){}
-  }
 }
 })();
 </script>
