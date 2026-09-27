@@ -249,7 +249,7 @@
         <h4>Identification</h4>
         <div class="grid2">
           <label class="field"><span>Folder / patient</span><input type="text" id="mPat" placeholder="GHA008"></label>
-          <label class="field"><span>Visit</span><input type="text" id="mVis" placeholder="1–8"></label>
+          <label class="field"><span>Visit</span><input type="text" id="mVis" placeholder="1–20"></label>
           <label class="field"><span>Hand</span>
             <select id="mHand"><option value="">–</option><option value="R">Right</option><option value="L">Left</option></select></label>
           <label class="field"><span>Finger</span>
@@ -262,7 +262,7 @@
         <h4>Assign 16 images at once</h4>
         <div class="grid2">
           <label class="field"><span>Folder / patient</span><input type="text" id="aPat" placeholder="GHA008"></label>
-          <label class="field"><span>Visit</span><input type="text" id="aVis" placeholder="1–8"></label>
+          <label class="field"><span>Visit</span><input type="text" id="aVis" placeholder="1–20"></label>
           <label class="field" style="grid-column:1/-1"><span>Order</span>
             <select id="aOrder">
               <option value="RL">Right hand first, then left</option>
@@ -342,8 +342,9 @@
   <div class="modal" style="width:660px">
     <h3>Excel rows for the NVC database</h3>
     <p>Copies <b id="xN">0</b> row(s), one per patient per visit, in the column layout of the
-       study database: Identifier, Visit, then per image (L2a to R5b) density, giants,
-       dilations, abnormal shapes, haemorrhage and pattern, followed by the summary columns.
+       study database: Identifier, Visit, then per image (L2a to R5b) density, giants, dilations,
+       abnormal shapes (total, then $, $#, $$ and $$* separately), haemorrhage and pattern,
+       followed by the summary columns (174 columns in total).
        Paste onto the first empty <b>Identifier</b> row of the database sheet.</p>
     <div id="xPrev" style="overflow:auto;margin-top:12px;max-height:270px"></div>
     <div class="acts">
@@ -366,7 +367,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null
 };
-var APP_VERSION = "5.1";
+var APP_VERSION = "5.4";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -413,8 +414,8 @@ function parseMeta(path){
   m.patient = folderOf(s);
   if (!m.patient && (r = base.match(/^([A-Za-z]{2,6}[\s_\-]?\d{2,5})/))) m.patient = r[1];
   if (!m.patient && (r = s.match(/(?:pat|patient|patiënt|pt)[\s_\-]?0*(\d{1,4})/i))) m.patient = r[1];
-  // visit 1 to 8: V1, visit 5, Visite 2, V05, T3, bezoek 2, controle 2, baseline, follow-up
-  if ((r = s.match(/(?:^|[_\-\s\/])(?:visit[ea]?|bezoek|controle|v|t)[\s_\-]?0*([1-8])(?!\d)/i))) m.visit = r[1];
+  // visit 1 to 20: V1, visit 5, Visite 12, V05, T3, bezoek 2, controle 2, baseline, follow-up
+  if ((r = s.match(/(?:^|[_\-\s\/])(?:visit[ea]?|bezoek|controle|v|t)[\s_\-]?0*(20|1\d|[1-9])(?!\d)/i))) m.visit = r[1];
   else if (/(?:^|[_\-\s\/])(baseline|bl)(?=[_\-\s\/.]|$)/i.test(s)) m.visit = "1";
   else if (/(?:^|[_\-\s\/])(follow[\s_\-]?up|fup|fu)(?=[_\-\s\/.]|$)/i.test(s)) m.visit = "2";
   // compact code such as _L2A / _R3B  →  hand, finger, photo
@@ -705,6 +706,7 @@ function walk(parent, node, label, path, depth){
   row.style.paddingLeft = (8 + depth*13) + "px";
   var badge = "";
   if (depth === 1){
+    row.dataset.vpath = path;
     var pv = visitPatternName(path);
     if (pv) badge = '<span class="patv">' + esc(pv) + '</span>';
   }
@@ -757,7 +759,19 @@ function leafRow(i, depth){
   return el;
 }
 function markLeaf(r){                    // counts changed: update the dots, skip the rebuild
-  if (!r || !r.row) return;
+  if (!r) return;
+  var k = keyOf(r), vp = k.p + "/" + k.v, pv = visitPatternName(vp);   // live visit pattern badge
+  var rows = $("tree").querySelectorAll(".node");
+  for (var i = 0; i < rows.length; i++){
+    if (rows[i].dataset.vpath !== vp) continue;
+    var b = rows[i].querySelector(".patv");
+    if (pv){
+      if (!b){ b = document.createElement("span"); b.className = "patv"; rows[i].insertBefore(b, rows[i].querySelector(".ct")); }
+      b.textContent = pv;
+    } else if (b) b.remove();
+    break;
+  }
+  if (!r.row) return;
   r.row.innerHTML = '<i class="dot' + (r.pxPerMm ? " ok" : "") + '"></i>' +
                     '<i class="dot' + (r.ann.length ? " ann" : "") + '"></i>';
 }
@@ -997,12 +1011,12 @@ function snap(){
 function undo(){
   var r = cur(); if (!r || !r.undo.length) return;
   r.redo.push(JSON.stringify(r.ann)); r.ann = JSON.parse(r.undo.pop());
-  S.sel = null; draw(); syncPanel(); markLeaf(r);
+  dirty = true; S.sel = null; draw(); syncPanel(); markLeaf(r);
 }
 function redo(){
   var r = cur(); if (!r || !r.redo.length) return;
   r.undo.push(JSON.stringify(r.ann)); r.ann = JSON.parse(r.redo.pop());
-  S.sel = null; draw(); syncPanel(); markLeaf(r);
+  dirty = true; S.sel = null; draw(); syncPanel(); markLeaf(r);
 }
 
 /* ================= pointer ================= */
@@ -1260,7 +1274,7 @@ function labelOf(a){
           dollar2:"abnormal shape 3 ($$)", dollar2s:"abnormal shape 4 ($$*)",
           triangle:"haemorrhage", measure:"measurement"}[a.type] || a.type;
 }
-var MAX_VISIT = 8;
+var MAX_VISIT = 20;
 function normVisit(v){                    // "05", "V5", "visit 5" -> "5"; "" stays ""; invalid -> null
   v = String(v || "").trim();
   if (!v) return "";
@@ -1337,7 +1351,7 @@ document.addEventListener("keydown", function(e){
       draw(); syncPanel(); markLeaf(r); }
     return;
   }
-  if (k === "g" && S.sel && S.sel.type === "capillary"){ snap(); S.sel.giant = !S.sel.giant; draw(); return; }
+  if (k === "g" && S.sel && S.sel.type === "capillary"){ snap(); S.sel.giant = !S.sel.giant; draw(); syncPanel(); markLeaf(cur()); return; }
   if (k === "r" && S.sel && S.sel.type === "capillary"){ snap(); S.sel.dir = (S.sel.dir+45)%360; draw(); return; }
   if (k === "f"){ fit(); return; }
   if (k === "escape"){ S.sel = null; draw(); syncPanel(); return; }
@@ -1385,8 +1399,10 @@ function applyProject(data, merge){
   (data.images||[]).forEach(function(o){
     S.pending[o.path] = o;
     // a bare file name is only a valid key when it is unambiguous
-    if (S.pending[o.name] === undefined) S.pending[o.name] = o;
-    else if (S.pending[o.name] !== o) S.pending[o.name] = "ambiguous";
+    var prev = S.pending[o.name];
+    if (prev === undefined) S.pending[o.name] = o;
+    else if (prev !== o && prev !== "ambiguous" && prev.path === o.path) S.pending[o.name] = o;  // exact duplicate (older files)
+    else if (prev !== o) S.pending[o.name] = "ambiguous";
   });
   var hit = 0;
   S.images.forEach(function(r){
@@ -1685,10 +1701,10 @@ function xRows(list){
       var anyA = 0, anyH = 0, anyG = 0, nAnn = 0;
       SLOTS.forEach(function(sl){
         var r = slotImage(list, pl, v, sl);
-        if (!r || !r.ann.length){ cells.push("","","","","",""); return; }
+        if (!r || !r.ann.length){ cells.push("","","","","","","","","",""); return; }
         var st = stats(r), ab = st.hash + st.dollar + st.d2 + st.d2s, pc = patternCode(r, st);
         nAnn++;
-        cells.push(st.cap, st.giant, st.dil, ab, st.hem > 0 ? 1 : 0, pc);
+        cells.push(st.cap, st.giant, st.dil, ab, st.dollar, st.hash, st.d2, st.d2s, st.hem > 0 ? 1 : 0, pc);
         dens.push(st.cap); dil.push(st.dil); abn.push(ab); gia.push(st.giant); pat.push(pc);
         if (ab) anyA = 1; if (st.hem) anyH = 1; if (st.giant) anyG = 1;
       });
@@ -1713,12 +1729,14 @@ function xHeader(){
   var h = ["Identifier","Visit"];
   SLOTS.forEach(function(sl){
     var c = sl.h + sl.f + (sl.p === "1" ? "a" : "b");
-    h.push(c+" density", c+" giants", c+" dilations", c+" abnormal shapes",
-           c+" haemorrhage (1=Y)", c+" pattern (0-4)");
+    h.push(c+"_density", c+"_giants", c+"_dilations", c+"_abnormalTotal",
+           c+"_shape1_$", c+"_shape2_$#", c+"_shape3_$$", c+"_shape4_$$*",
+           c+"_haemorrhage (1=yes)", c+"_pattern (N0 NS1 E2 A3 L4)");
   });
   return h.concat(["MEAN CAP DENSITY (SD)","MEDIAN CAP DENSITY","MEAN DILATIONS (SD)","MEDIAN DILATIONS",
                    "MEAN ABN SHAPES (SD)","MEDIAN ABN SHAPES","PRESENCE ABNORMAL SHAPES (1=Y)","PRESENCE HAEMS (1=Y)",
-                   "MEAN GIANTS (SD)","MEDIAN GIANTS","PRESENCE GIANTS (1=Y)","OVERALL PATTERN (0-4)"]);
+                   "MEAN GIANTS (SD)","MEDIAN GIANTS","PRESENCE GIANTS (1-YES)",
+                   "OVERALL PATTERN 0 = Normal, 1 = Non-specific, 2 = Early, 3 = Active, 4 = Late"]);
 }
 function colName(n){ var s = ""; n++; while (n){ n--; s = String.fromCharCode(65 + n % 26) + s; n = Math.floor(n / 26); } return s; }
 function xmlEsc(v){ return String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
@@ -1870,21 +1888,35 @@ async function useDir(dir, add){
   updateLinkBtn();
   var files = [], projects = [];
   await collect(dir, dir.name + "/", files, projects);   // folder name becomes the tree root
-  var loaded = 0;
+  var loaded = 0, savedEntries = [];
   for (var i = 0; i < projects.length; i++){             // existing work takes precedence
     try {
       var txt = await (await projects[i].getFile()).text();
-      applyProject(JSON.parse(txt), add || i > 0);
+      var data = JSON.parse(txt);
+      applyProject(data, add || i > 0);
+      savedEntries = savedEntries.concat(data.images || []);
       loaded++;
     } catch(e){}
   }
   if (!files.length){ toast("No images found in " + dir.name + "."); return; }
   files.forEach(function(f){ f._dirId = entry.id; });    // so each folder saves its own work
   addFiles(files);
+  // Saved annotations whose image is no longer in the folder (renamed or moved outside
+  // the tool) are carried along into every save, so they are never silently lost.
+  var have = {}, seen = {};
+  S.images.forEach(function(r){ if (r.dirId === entry.id) have[r.name] = 1; });
+  var orphans = savedEntries.filter(function(o){
+    if (o._used || !o.ann || !o.ann.length || have[o.name]) return false;
+    var key = o.path || o.name;
+    if (seen[key]) return false;
+    seen[key] = 1; return true;
+  });
+  if (orphans.length) entry.extra = (entry.extra || []).concat(orphans);
   setTimeout(function(){
-    toast(loaded
+    toast((loaded
       ? dir.name + " loaded · " + files.length + " images · saved work restored"
-      : dir.name + " loaded · " + files.length + " images · no project.json found");
+      : dir.name + " loaded · " + files.length + " images · no project.json found") +
+      (orphans.length ? " · " + orphans.length + " annotated image(s) in project.json not found in the folder (kept, not deleted)" : ""));
   }, 700);
 }
 async function fsSave(){
@@ -1893,8 +1925,13 @@ async function fsSave(){
   try {
     for (var k = 0; k < FS.dirs.length; k++){
       var d = FS.dirs[k];
-      var list = S.images.filter(function(r){ return r.dirId === d.id; })
-                         .map(serializeRec).concat(d.extra || []);
+      var live = S.images.filter(function(r){ return r.dirId === d.id; }).map(serializeRec);
+      var livePath = {}, kept = {};
+      live.forEach(function(o){ livePath[o.path] = 1; });
+      (d.extra || []).forEach(function(o){             // closed or unmatched work: once, never twice
+        if (!livePath[o.path]) kept[o.path || o.name] = o;
+      });
+      var list = live.concat(Object.keys(kept).map(function(k){ return kept[k]; }));
       if (!list.length) continue;
       var fh = await d.handle.getFileHandle("project.json", {create:true});
       var w = await fh.createWritable();
@@ -1949,7 +1986,7 @@ async function closePatient(plabel){
     return S.images.some(function(r){ return r.dirId === d.id; });
   });
   FS.saved = FS.dirs.map(function(d){ return d.handle; });   // keep the button in sync
-  try { idbPut("dirs", FS.saved); } catch(e){}
+  idbPut("dirs", FS.saved).catch(function(){});
   if (list.indexOf(curRec) >= 0){
     S.idx = -1; S.sel = null;
     if (S.images.length) select(0);
@@ -2003,7 +2040,7 @@ async function pickFolder(add){
     var dir = await window.showDirectoryPicker({mode:"readwrite"});
     await useDir(dir, add);
     FS.saved = FS.dirs.map(function(d){ return d.handle; });
-    await idbPut("dirs", FS.saved);
+    await idbPut("dirs", FS.saved).catch(function(){});
   } catch(e){
     // Cancelled: do nothing. Anything else means the picker is unavailable here,
     // so fall back to the classic folder input.
