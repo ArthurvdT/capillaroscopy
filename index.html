@@ -105,6 +105,7 @@
     border:1px solid var(--line);text-align:left}
   .tool:hover{border-color:#3B4C57}
   .tool.on{background:#123230;border-color:var(--accent)}
+  .tool:focus,.tool:focus-visible,.dirb:focus{outline:none}   /* only the teal "on" state marks the tool */
   .tool .gl{width:19px;flex:none;display:grid;place-items:center}
   .tool .gl svg{display:block}
   .tool .nm{font-size:11.5px;line-height:1.25}
@@ -117,6 +118,7 @@
         color:var(--dim);background:var(--panel)}
   .dirb:hover{border-color:#3B4C57;color:var(--text)}
   .dirb.on{border-color:var(--accent);color:var(--accent)}
+  .dirb.sel{border-color:#8FA3AE;color:#D5DEE3;box-shadow:inset 0 0 0 1px #8FA3AE}
   .tool .gl svg{transition:transform .12s}
 
   .block{padding:10px 12px;border-top:1px solid var(--line)}
@@ -266,21 +268,6 @@
       </div>
 
       <div class="block">
-        <h4>Assign 16 images at once</h4>
-        <div class="grid2">
-          <label class="field"><span>Folder / patient</span><input type="text" id="aPat" placeholder="GHA008"></label>
-          <label class="field"><span>Visit</span><input type="text" id="aVis" placeholder="1–20"></label>
-          <label class="field" style="grid-column:1/-1"><span>Order</span>
-            <select id="aOrder">
-              <option value="RL">Right hand first, then left</option>
-              <option value="LR">Left hand first, then right</option>
-            </select></label>
-        </div>
-        <button class="btn ghost" id="bAuto" style="width:100%;margin-top:7px">Assign from current image</button>
-        <div class="hint">Fills 16 images from the selected one: per hand, fingers 2 to 5, image 1 and 2 each.</div>
-      </div>
-
-      <div class="block">
         <h4>Display</h4>
         <div class="row"><span class="k">Style</span>
           <select id="scheme" style="width:126px">
@@ -374,7 +361,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null
 };
-var APP_VERSION = "5.9";
+var APP_VERSION = "6.1";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -912,7 +899,8 @@ function drawArrow(a, col, m){
   ctx.lineTo(bx - px*sw, by - py*sw);
   ctx.lineTo(bx - px*hw, by - py*hw);
   ctx.closePath();
-  if (SELHALO){ ctx.strokeStyle = SELHALO; ctx.lineWidth = m*0.42; ctx.lineJoin = "round"; ctx.stroke(); return; }
+  // in colour mode the shape has its own dark rim on top, so the selection halo is widened by that rim
+  if (SELHALO){ ctx.strokeStyle = SELHALO; ctx.lineWidth = m*(0.21 + (col.halo ? 0.10 : 0)); ctx.lineJoin = "round"; ctx.stroke(); return; }
   if (col.halo){ ctx.strokeStyle = col.halo; ctx.lineWidth = m*0.10; ctx.lineJoin = "round"; ctx.stroke(); }
   ctx.fillStyle = g ? col.giant : col.capillary;
   ctx.fill();
@@ -924,7 +912,7 @@ function drawTri(a, col, m){
   ctx.lineTo(a.x + s*0.56, a.y + s*0.45);
   ctx.lineTo(a.x - s*0.56, a.y + s*0.45);
   ctx.closePath();
-  if (SELHALO){ ctx.strokeStyle = SELHALO; ctx.lineWidth = m*0.42; ctx.lineJoin = "round"; ctx.stroke(); return; }
+  if (SELHALO){ ctx.strokeStyle = SELHALO; ctx.lineWidth = m*(0.21 + (col.halo ? 0.12 : 0)); ctx.lineJoin = "round"; ctx.stroke(); return; }
   if (col.halo){ ctx.strokeStyle = col.halo; ctx.lineWidth = m*0.12; ctx.lineJoin="round"; ctx.stroke(); }
   ctx.fillStyle = col.triangle; ctx.fill();
 }
@@ -932,13 +920,13 @@ function drawGlyph(a, ch, color, m, shrink){
   var col = C();
   ctx.font = "700 " + (m*1.7*(shrink||1)) + "px " + UIFONT;
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  if (SELHALO){ ctx.lineWidth = m*0.40; ctx.lineJoin = "round"; ctx.strokeStyle = SELHALO; ctx.strokeText(ch, a.x, a.y); return; }
+  if (SELHALO){ ctx.lineWidth = m*(0.20 + (col.halo ? 0.22 : 0)); ctx.lineJoin = "round"; ctx.strokeStyle = SELHALO; ctx.strokeText(ch, a.x, a.y); return; }
   if (col.halo){ ctx.lineWidth = m*0.22; ctx.strokeStyle = col.halo; ctx.strokeText(ch, a.x, a.y); }
   ctx.fillStyle = color; ctx.fillText(ch, a.x, a.y);
 }
 function drawMeasure(a, col, m){
   if (SELHALO){
-    ctx.strokeStyle = SELHALO; ctx.lineCap = "round"; ctx.lineWidth = Math.max(m*0.36, 2);
+    ctx.strokeStyle = SELHALO; ctx.lineCap = "round"; ctx.lineWidth = Math.max(m*0.22, 1.5) + (col.halo ? Math.max(m*0.085, 0.6)*1.4 : 0);
     ctx.beginPath(); ctx.moveTo(a.x1,a.y1); ctx.lineTo(a.x2,a.y2); ctx.stroke();
     return;
   }
@@ -1317,26 +1305,6 @@ function normVisit(v){                    // "05", "V5", "visit 5" -> "5"; "" st
 });
 
 /* ================= bulk assign ================= */
-$("bAuto").onclick = function(){
-  if (S.idx < 0) return toast("Select a starting image first.");
-  var pat = $("aPat").value.trim(), vis = normVisit($("aVis").value);
-  if (!pat || !vis) return toast(vis === null ? "Visit must be a number from 1 to " + MAX_VISIT + "."
-                                              : "Fill in patient and visit.");
-  var hands = $("aOrder").value === "RL" ? ["R","L"] : ["L","R"];
-  var plan = [];
-  hands.forEach(function(h){
-    [2,3,4,5].forEach(function(f){ [1,2].forEach(function(p){ plan.push({h:h,f:String(f),p:String(p)}); }); });
-  });
-  var n = 0;
-  for (var i = 0; i < plan.length && S.idx+i < S.images.length; i++){
-    var r = S.images[S.idx+i];
-    r.meta = {patient:pat, visit:vis, hand:plan[i].h, finger:plan[i].f, photo:plan[i].p};
-    openPathTo(r); n++;
-  }
-  dirty = true; renderTree(); syncPanel();
-  toast(n + " images assigned to " + groupLabel(pat) + ", visit " + vis + ".");
-};
-
 /* ================= tools & keys ================= */
 function setTool(t){
   S.tool = t; S.hover = null;
@@ -1344,6 +1312,7 @@ function setTool(t){
     b.classList.toggle("on", b.dataset.tool === t);
   });
   canvas.style.cursor = t === "select" ? "default" : "crosshair";
+  if (S.dir != null) syncDirs();
 }
 Array.prototype.forEach.call(document.querySelectorAll(".tool"), function(b){
   b.onclick = function(){ setTool(b.dataset.tool); };
@@ -1361,9 +1330,14 @@ function dirSvg(d, thick){
   return '<svg width="14" height="14" viewBox="0 0 16 16"><path d="' + p + '" fill="currentColor" transform="rotate(' +
          (d + 90) + ' 8 8)"/></svg>';
 }
-function syncDirs(){
-  Array.prototype.forEach.call(document.querySelectorAll(".dirb"), function(b){
-    b.classList.toggle("on", +b.dataset.dir === S.dir);
+function syncDirs(){                      // blue only in the active tool's button, bold grey otherwise
+  Array.prototype.forEach.call(document.querySelectorAll(".dirs"), function(box){
+    var active = box.dataset.for === S.tool;
+    Array.prototype.forEach.call(box.querySelectorAll(".dirb"), function(b){
+      var mine = +b.dataset.dir === S.dir;
+      b.classList.toggle("on", mine && active);
+      b.classList.toggle("sel", mine && !active);
+    });
   });
   ["glCap", "glGia"].forEach(function(id){
     var s = $(id).querySelector("svg"); if (s) s.style.transform = "rotate(" + (S.dir + 90) + "deg)";
