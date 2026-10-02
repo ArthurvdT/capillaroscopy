@@ -111,6 +111,13 @@
   .tool .k{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--dimmer);
     border:1px solid var(--line);border-radius:3px;padding:0 4px}
   .tool.wide{grid-column:1/-1}
+  .tool .dirs{margin-left:auto;display:flex;gap:3px}
+  .tool .dirs + .k{margin-left:6px}
+  .dirb{width:22px;height:20px;display:grid;place-items:center;border:1px solid var(--line);border-radius:4px;
+        color:var(--dim);background:var(--panel)}
+  .dirb:hover{border-color:#3B4C57;color:var(--text)}
+  .dirb.on{border-color:var(--accent);color:var(--accent)}
+  .tool .gl svg{transition:transform .12s}
 
   .block{padding:10px 12px;border-top:1px solid var(--line)}
   .block h4{margin:0 0 7px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;
@@ -213,16 +220,16 @@
     <div class="col right">
       <div class="colhead"><span>Tools</span></div>
       <div class="tools">
-        <button class="tool" data-tool="select"><span class="gl">✥</span><span class="nm">Select</span><span class="k">V</span></button>
-        <button class="tool on" data-tool="capillary"><span class="gl" id="glCap"></span><span class="nm">Capillary</span><span class="k">1</span></button>
-        <button class="tool" data-tool="giant"><span class="gl" id="glGia"></span><span class="nm">Giant ≥50 µm</span><span class="k">2</span></button>
+        <button class="tool wide" data-tool="select"><span class="gl">✥</span><span class="nm">Select</span><span class="k">V</span></button>
+        <div class="tool wide on" data-tool="capillary" role="button" tabindex="0"><span class="gl" id="glCap"></span><span class="nm">Capillary</span><span class="dirs" data-for="capillary"></span><span class="k">1</span></div>
+        <div class="tool wide" data-tool="giant" role="button" tabindex="0"><span class="gl" id="glGia"></span><span class="nm">Giant ≥50 µm</span><span class="dirs" data-for="giant"></span><span class="k">2</span></div>
         <button class="tool" data-tool="dollar"><span class="gl">$</span><span class="nm">Abn. shape 1</span><span class="k">3</span></button>
         <button class="tool" data-tool="hash"><span class="gl" style="font-size:10px">$#</span><span class="nm">Abn. shape 2</span><span class="k">4</span></button>
-        <button class="tool" data-tool="dollar2"><span class="gl" style="font-size:10px">$$</span><span class="nm">Abn. shape 3</span><span class="k">8</span></button>
-        <button class="tool" data-tool="dollar2s"><span class="gl" style="font-size:10px">$$*</span><span class="nm">Abn. shape 4</span><span class="k">9</span></button>
-        <button class="tool" data-tool="triangle"><span class="gl">▲</span><span class="nm">Haemorrhage</span><span class="k">5</span></button>
-        <button class="tool" data-tool="measure"><span class="gl" style="color:#E8262A">|</span><span class="nm">Measure</span><span class="k">6</span></button>
-        <button class="tool wide" data-tool="scale"><span class="gl" style="color:var(--accent)">⊞</span><span class="nm">Set scale (1 mm grid)</span><span class="k">7</span></button>
+        <button class="tool" data-tool="dollar2"><span class="gl" style="font-size:10px">$$</span><span class="nm">Abn. shape 3</span><span class="k">5</span></button>
+        <button class="tool" data-tool="dollar2s"><span class="gl" style="font-size:10px">$$*</span><span class="nm">Abn. shape 4</span><span class="k">6</span></button>
+        <button class="tool" data-tool="triangle"><span class="gl">▲</span><span class="nm">Haemorrhage</span><span class="k">7</span></button>
+        <button class="tool" data-tool="measure"><span class="gl" style="color:#E8262A">|</span><span class="nm">Measure</span><span class="k">8</span></button>
+        <button class="tool wide" data-tool="scale"><span class="gl" style="color:var(--accent)">⊞</span><span class="nm">Set scale (1 mm grid)</span><span class="k">9</span></button>
       </div>
 
       <div class="block">
@@ -367,7 +374,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null
 };
-var APP_VERSION = "5.4";
+var APP_VERSION = "5.9";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -641,7 +648,7 @@ function select(i){
   if (i < 0 || i >= S.images.length) return;
   var rr = S.images[i];
   if (rr.broken){ rr.broken = false; rr.freshTried = false; rr.captureTried = false; }  // retry on reopen
-  S.idx = i; S.sel = null;
+  S.idx = i; S.sel = null; S.hover = null;
   freeLevels(i);
   openPathTo(S.images[i]);
   fit();
@@ -858,14 +865,26 @@ function draw(){
   var src = levelFor(r, S.zoom);
   ctx.drawImage(src.cv, 0, 0, r.w, r.h);
   if (r.calib) drawCalib(r.calib);
-  r.ann.forEach(function(a){ drawAnn(a, a === S.sel); });
+  r.ann.forEach(function(a){ drawAnn(a, a === S.sel, S.tool === "select" && a === S.hover && a !== S.sel); });
   if (S.drag && S.drag.kind === "line") drawGhost(S.drag);
   ctx.restore();
   drawScaleBar();
 }
 
-function drawAnn(a, on){
+/* Selection: a halo that follows the outline of the shape itself (every type, every
+   direction), drawn underneath it. Full colour when selected, faint while hovering. */
+var SELHALO = null;
+function drawAnn(a, on, hov){
   var col = C(), m = markerSize();
+  if (on || hov){
+    var base = S.scheme === "contrast" ? "255,255,255" : "53,193,181";
+    SELHALO = "rgba(" + base + "," + (on ? 1 : 0.45) + ")";
+    ctx.save(); drawShape(a, col, m); ctx.restore();
+    SELHALO = null;
+  }
+  drawShape(a, col, m);
+}
+function drawShape(a, col, m){
   if (a.type === "capillary")      drawArrow(a, col, m);
   else if (a.type === "hash")      drawGlyph(a, "$#", col.hash, m, 0.8);
   else if (a.type === "dollar")    drawGlyph(a, "$", col.dollar, m);
@@ -873,7 +892,6 @@ function drawAnn(a, on){
   else if (a.type === "dollar2s")  drawGlyph(a, "$$*", col.dollar2s, m, 0.72);
   else if (a.type === "triangle")  drawTri(a, col, m);
   else if (a.type === "measure")   drawMeasure(a, col, m);
-  if (on) ring(a, m);
 }
 function drawArrow(a, col, m){
   var g = !!a.giant;
@@ -894,6 +912,7 @@ function drawArrow(a, col, m){
   ctx.lineTo(bx - px*sw, by - py*sw);
   ctx.lineTo(bx - px*hw, by - py*hw);
   ctx.closePath();
+  if (SELHALO){ ctx.strokeStyle = SELHALO; ctx.lineWidth = m*0.42; ctx.lineJoin = "round"; ctx.stroke(); return; }
   if (col.halo){ ctx.strokeStyle = col.halo; ctx.lineWidth = m*0.10; ctx.lineJoin = "round"; ctx.stroke(); }
   ctx.fillStyle = g ? col.giant : col.capillary;
   ctx.fill();
@@ -905,6 +924,7 @@ function drawTri(a, col, m){
   ctx.lineTo(a.x + s*0.56, a.y + s*0.45);
   ctx.lineTo(a.x - s*0.56, a.y + s*0.45);
   ctx.closePath();
+  if (SELHALO){ ctx.strokeStyle = SELHALO; ctx.lineWidth = m*0.42; ctx.lineJoin = "round"; ctx.stroke(); return; }
   if (col.halo){ ctx.strokeStyle = col.halo; ctx.lineWidth = m*0.12; ctx.lineJoin="round"; ctx.stroke(); }
   ctx.fillStyle = col.triangle; ctx.fill();
 }
@@ -912,10 +932,16 @@ function drawGlyph(a, ch, color, m, shrink){
   var col = C();
   ctx.font = "700 " + (m*1.7*(shrink||1)) + "px " + UIFONT;
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  if (SELHALO){ ctx.lineWidth = m*0.40; ctx.lineJoin = "round"; ctx.strokeStyle = SELHALO; ctx.strokeText(ch, a.x, a.y); return; }
   if (col.halo){ ctx.lineWidth = m*0.22; ctx.strokeStyle = col.halo; ctx.strokeText(ch, a.x, a.y); }
   ctx.fillStyle = color; ctx.fillText(ch, a.x, a.y);
 }
 function drawMeasure(a, col, m){
+  if (SELHALO){
+    ctx.strokeStyle = SELHALO; ctx.lineCap = "round"; ctx.lineWidth = Math.max(m*0.36, 2);
+    ctx.beginPath(); ctx.moveTo(a.x1,a.y1); ctx.lineTo(a.x2,a.y2); ctx.stroke();
+    return;
+  }
   ctx.lineCap = "butt";
   ctx.strokeStyle = col.measure; ctx.lineWidth = Math.max(m*0.085, 0.6);
   if (col.halo){
@@ -930,14 +956,6 @@ function drawMeasure(a, col, m){
   ctx.textAlign = "center"; ctx.textBaseline = "top";
   if (col.halo){ ctx.lineWidth = m*0.14; ctx.strokeStyle = col.halo; ctx.strokeText(label, lx, ly); }
   ctx.fillStyle = col.text; ctx.fillText(label, lx, ly);
-}
-function ring(a, m){
-  var p = anchor(a);
-  ctx.save();
-  ctx.strokeStyle = "#35C1B5"; ctx.lineWidth = Math.max(m*0.055,0.4);
-  ctx.setLineDash([m*0.24, m*0.20]);
-  ctx.beginPath(); ctx.arc(p.x, p.y, m*0.78, 0, Math.PI*2); ctx.stroke();
-  ctx.restore();
 }
 function drawCalib(c){
   var m = markerSize();
@@ -1022,6 +1040,7 @@ function redo(){
 /* ================= pointer ================= */
 var spaceDown = false;
 canvas.addEventListener("contextmenu", function(e){ e.preventDefault(); });
+canvas.addEventListener("pointerleave", function(){ if (S.hover){ S.hover = null; drawSoon(); } });
 
 canvas.addEventListener("pointerdown", function(e){
   var r = cur(); if (!r || !r.ready) return;
@@ -1043,7 +1062,7 @@ canvas.addEventListener("pointerdown", function(e){
   }
   snap();
   var a = (S.tool === "capillary" || S.tool === "giant")
-    ? {id:uid(), type:"capillary", x:p.x, y:p.y, dir:-90, giant:S.tool === "giant"}
+    ? {id:uid(), type:"capillary", x:p.x, y:p.y, dir:S.dir, giant:S.tool === "giant"}
     : {id:uid(), type:S.tool, x:p.x, y:p.y};
   r.ann.push(a); S.sel = a;
   draw(); syncPanel(); markLeaf(r);
@@ -1054,6 +1073,10 @@ canvas.addEventListener("pointermove", function(e){
   var b = canvas.getBoundingClientRect(), px = e.clientX-b.left, py = e.clientY-b.top;
   var p = toImg(px,py);
   updatePos(p);
+  if (S.tool === "select" && !S.drag && !spaceDown){    // faint halo under the pointer
+    var hv = hit(p.x, p.y) || null;
+    if (hv !== S.hover){ S.hover = hv; canvas.style.cursor = hv ? "pointer" : "default"; drawSoon(); }
+  }
   var d = S.drag; if (!d) return;
   if (d.kind === "pan"){ S.panX = d.ox+(px-d.sx); S.panY = d.oy+(py-d.sy); drawSoon(); }
   else if (d.kind === "line"){
@@ -1316,7 +1339,7 @@ $("bAuto").onclick = function(){
 
 /* ================= tools & keys ================= */
 function setTool(t){
-  S.tool = t;
+  S.tool = t; S.hover = null;
   Array.prototype.forEach.call(document.querySelectorAll(".tool"), function(b){
     b.classList.toggle("on", b.dataset.tool === t);
   });
@@ -1330,6 +1353,39 @@ $("glCap").innerHTML = '<svg width="9" height="16" viewBox="0 0 9 16">' +
 $("glGia").innerHTML = '<svg width="13" height="16" viewBox="0 0 13 16">' +
   '<path d="M6.5 0 L12.5 6.4 H9.1 V16 H3.9 V6.4 H0.5 Z" fill="currentColor"/></svg>';
 
+/* ---- arrow direction: one shared choice for capillary and giant arrows ---- */
+S.dir = -90;                                        // up, as before
+var DIRS = [[-90, "Up"], [0, "Right"], [90, "Down"], [180, "Left"]];
+function dirSvg(d, thick){
+  var p = thick ? "M8 1.5 L13.5 7.5 H10.3 V14.5 H5.7 V7.5 H2.5 Z" : "M8 1.5 L11.6 6.5 H9 V14.5 H7 V6.5 H4.4 Z";
+  return '<svg width="14" height="14" viewBox="0 0 16 16"><path d="' + p + '" fill="currentColor" transform="rotate(' +
+         (d + 90) + ' 8 8)"/></svg>';
+}
+function syncDirs(){
+  Array.prototype.forEach.call(document.querySelectorAll(".dirb"), function(b){
+    b.classList.toggle("on", +b.dataset.dir === S.dir);
+  });
+  ["glCap", "glGia"].forEach(function(id){
+    var s = $(id).querySelector("svg"); if (s) s.style.transform = "rotate(" + (S.dir + 90) + "deg)";
+  });
+}
+function chooseDir(d, tool){
+  var r = cur();
+  if (r && S.tool === "select" && S.sel && S.sel.type === "capillary"){   // picked with Select: it turns (this image only)
+    snap(); S.sel.dir = d; draw(); syncPanel(); markLeaf(r);
+  } else if (S.tool !== tool) setTool(tool);
+  S.dir = d; syncDirs();
+}
+Array.prototype.forEach.call(document.querySelectorAll(".dirs"), function(box){
+  box.innerHTML = DIRS.map(function(x){
+    return '<span class="dirb" data-dir="' + x[0] + '" title="' + x[1] + '">' + dirSvg(x[0], box.dataset.for === "giant") + '</span>';
+  }).join("");
+  Array.prototype.forEach.call(box.querySelectorAll(".dirb"), function(b){
+    b.onclick = function(ev){ ev.stopPropagation(); chooseDir(+b.dataset.dir, box.dataset.for); };
+  });
+});
+syncDirs();
+
 document.addEventListener("keydown", function(e){
   if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)){ if (e.key === "Escape") e.target.blur(); return; }
   var k = e.key.toLowerCase();
@@ -1341,10 +1397,16 @@ document.addEventListener("keydown", function(e){
     else toast("Load a folder first: work saves into it automatically.");
     return;
   }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;     // Cmd+R, Cmd+1 ... stay the browser's own
   if (e.code === "Space"){ spaceDown = true; canvas.style.cursor = "grab"; e.preventDefault(); return; }
-  var map = {"v":"select","1":"capillary","2":"giant","3":"dollar","4":"hash",
-             "5":"triangle","6":"measure","7":"scale","8":"dollar2","9":"dollar2s"};
-  if (map[k]){ setTool(map[k]); return; }
+  // tools follow the order on screen. The physical key counts, so the number row works
+  // without Shift on AZERTY as well as QWERTY, and the numeric keypad works too.
+  var TOOLS = {"1":"capillary","2":"giant","3":"dollar","4":"hash","5":"dollar2",
+               "6":"dollar2s","7":"triangle","8":"measure","9":"scale"};
+  var dg = /^(?:Digit|Numpad)([1-9])$/.exec(e.code || "");
+  var num = dg ? dg[1] : (/^[1-9]$/.test(e.key) ? e.key : null);
+  if (num){ setTool(TOOLS[num]); return; }
+  if (k === "v"){ setTool("select"); return; }
   if (k === "delete" || k === "backspace"){
     var r = cur();
     if (r && S.sel){ snap(); r.ann = r.ann.filter(function(a){ return a !== S.sel; }); S.sel = null;
@@ -1352,7 +1414,7 @@ document.addEventListener("keydown", function(e){
     return;
   }
   if (k === "g" && S.sel && S.sel.type === "capillary"){ snap(); S.sel.giant = !S.sel.giant; draw(); syncPanel(); markLeaf(cur()); return; }
-  if (k === "r" && S.sel && S.sel.type === "capillary"){ snap(); S.sel.dir = (S.sel.dir+45)%360; draw(); return; }
+  if (k === "r" && S.sel && S.sel.type === "capillary"){ snap(); S.sel.dir = (S.sel.dir+90)%360; draw(); return; }
   if (k === "f"){ fit(); return; }
   if (k === "escape"){ S.sel = null; draw(); syncPanel(); return; }
   if (e.key === "PageDown" || k === "arrowright") select(S.idx+1);
@@ -1386,7 +1448,31 @@ function pendingFor(path, name){
   if (!o || o === "ambiguous" || o._used) return null;
   return o;
 }
+function unrotate(o){                    // v5.5 could rotate images: bring that work back to the
+  var k = ((o.rot || 0) % 360 + 360) % 360 / 90;   // file's own orientation (90° steps)
+  if (!k || !o.width || !o.height){ o.rot = 0; return; }
+  var W = o.width, H = o.height;
+  var Q = function(x, y){ return {x: y, y: W - x}; };          // undo one 90° clockwise turn
+  for (var i = 0; i < k; i++){
+    (o.ann || []).forEach(function(a){
+      if (a.type === "measure"){
+        var p1 = Q(a.x1, a.y1), p2 = Q(a.x2, a.y2);
+        a.x1 = p1.x; a.y1 = p1.y; a.x2 = p2.x; a.y2 = p2.y;
+      } else {
+        var p = Q(a.x, a.y); a.x = p.x; a.y = p.y;
+        if (a.type === "capillary") a.dir = ((a.dir || 0) - 90 + 360) % 360;
+      }
+    });
+    if (o.calib && o.calib.x1 != null){
+      var c1 = Q(o.calib.x1, o.calib.y1), c2 = Q(o.calib.x2, o.calib.y2);
+      o.calib = {x1:c1.x, y1:c1.y, x2:c2.x, y2:c2.y};
+    }
+    var t = W; W = H; H = t;
+  }
+  o.rot = 0; o.width = W; o.height = H;
+}
 function restoreInto(r, o){
+  unrotate(o);
   o._used = true;                        // one saved entry restores at most one image
   r.ann = (o.ann || []).slice();
   r.pxPerMm = o.pxPerMm || null;
@@ -1405,9 +1491,9 @@ function applyProject(data, merge){
     else if (prev !== o) S.pending[o.name] = "ambiguous";
   });
   var hit = 0;
-  S.images.forEach(function(r){
-    var o = pendingFor(r.path, r.name);
-    if (o){ restoreInto(r, o); hit++; }
+  S.images.forEach(function(r){            // images already open: exact path only, never by bare
+    var o = S.pending[r.path];             // file name, or another folder's work could land here
+    if (o && o !== "ambiguous" && !o._used){ restoreInto(r, o); hit++; }
   });
   S.sel = null; draw(); syncPanel(); renderTree();
   return hit;
@@ -1507,7 +1593,7 @@ function renderPngBytes(i){               // loads the image, draws, and release
     if (!im) return null;
     var keepIdx = S.idx, keepCtx = ctx, keepZ = S.zoom, keepX = S.panX, keepY = S.panY, keepSel = S.sel;
     S.idx = i;
-    if (!r.w){ r.w = im.naturalWidth; r.h = im.naturalHeight; r.ready = true; }
+    if (!r.w){ r.w = im.naturalWidth || im.width; r.h = im.naturalHeight || im.height; r.ready = true; }
     var off = document.createElement("canvas");
     try {
       off.width = r.w; off.height = r.h;
@@ -1606,6 +1692,8 @@ function exportZip(idxs, zipName){
       files.push({name:"project.json", data:bytes(projectJson(list))});
       dl(zipName, makeZip(files));
       toast("ZIP ready: " + nOk + " images in folder structure.");
+      var iss = xIssues(data);
+      if (iss.length) alert("Check database_rows.xlsx:\n\n" + iss.join("\n\n"));
       if (missed.length){
         var why = {};
         missed.forEach(function(m){ why[m.why] = (why[m.why] || 0) + 1; });
@@ -1682,11 +1770,16 @@ function median(a){
 }
 function xRows(list){
   list = list || S.images;
-  var rows = [], noVisit = 0, pats = [];
+  var rows = [], noVisit = 0, pats = [], leftOut = [], dupes = [], seen = {};
   list.forEach(function(r){
-    var pl = groupLabel(r.meta.patient);
+    var pl = groupLabel(r.meta.patient), m = r.meta;
     if (pats.indexOf(pl) < 0) pats.push(pl);
-    if (r.ann.length && !r.meta.visit) noVisit++;
+    if (!r.ann.length) return;
+    if (!m.visit) noVisit++;
+    if (!m.visit || !m.hand || !m.finger || !m.photo){ leftOut.push(r.name); return; }   // fits no column
+    var key = pl + " visit " + m.visit + " " + m.hand + m.finger + (m.photo === "1" ? "a" : "b");
+    seen[key] = (seen[key] || 0) + 1;
+    if (seen[key] === 2) dupes.push(key);
   });
   pats.sort(natCmp);
   pats.forEach(function(pl){
@@ -1723,7 +1816,18 @@ function xRows(list){
       });
     });
   });
-  return {rows: rows, noVisit: noVisit};
+  return {rows: rows, noVisit: noVisit, leftOut: leftOut, dupes: dupes};
+}
+function xIssues(data){                  // annotated work that would silently miss the database
+  var t = [];
+  if (data.leftOut.length)
+    t.push(data.leftOut.length + " annotated image(s) have no visit, hand, finger or photo number and are NOT in the rows: " +
+           data.leftOut.slice(0, 4).join(", ") + (data.leftOut.length > 4 ? ", \u2026" : "") +
+           ". Set them in the Identification panel.");
+  if (data.dupes.length)
+    t.push(data.dupes.length + " position(s) are claimed by more than one annotated image; only one of them is in the rows: " +
+           data.dupes.slice(0, 4).join(", ") + (data.dupes.length > 4 ? ", \u2026" : "") + ". Correct the photo codes.");
+  return t;
 }
 function xHeader(){
   var h = ["Identifier","Visit"];
@@ -1782,7 +1886,10 @@ function xlsxBytes(rows){                 // a minimal real .xlsx, built with th
   ]);
 }
 function xRender(data){
-  var h = '<table class="xt"><tr><th>Identifier</th><th>Visit</th><th>Annotated</th><th>Overall pattern</th></tr>';
+  var warn = xIssues(data).map(function(t){
+    return '<p style="color:var(--warn);margin:0 0 8px;font-size:12px;line-height:1.4">\u26a0 ' + esc(t) + '</p>';
+  }).join("");
+  var h = warn + '<table class="xt"><tr><th>Identifier</th><th>Visit</th><th>Annotated</th><th>Overall pattern</th></tr>';
   data.rows.forEach(function(r){
     h += '<tr><td class="lbl">' + esc(r.pl) + '</td><td class="val">visit ' + esc(r.v) + '</td>' +
          '<td class="val">' + r.n + ' / 16</td><td class="val">' + esc(PATNAMES[r.overall]) + '</td></tr>';
@@ -1792,10 +1899,9 @@ function xRender(data){
 $("bXls").onclick = function(){
   if (!S.images.length) return toast("No images loaded yet.");
   var data = xRows();
-  if (!data.rows.length) return toast("No annotated images yet.");
+  if (!data.rows.length) return toast(data.leftOut.length ? xIssues(data)[0] : "No annotated images yet.");
   $("xN").textContent = data.rows.length;
   xRender(data);
-  if (data.noVisit) toast(data.noVisit + " annotated image(s) without a visit were left out.");
   $("veil2").classList.add("on");
 };
 $("xClose").onclick = function(){ $("veil2").classList.remove("on"); };
