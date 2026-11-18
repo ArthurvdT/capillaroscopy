@@ -82,6 +82,10 @@
   .empty{padding:26px 16px;color:var(--dimmer);font-size:12px;text-align:center;line-height:1.6}
 
   .stage{position:relative;background:#0A0F12;min-width:0;overflow:hidden}
+  .relink{position:absolute;left:12px;right:12px;top:12px;z-index:5;padding:10px 12px;border-radius:8px;
+          background:#2A1D08;border:1px solid var(--warn);color:#FFE2A8;font-size:13px;line-height:1.45}
+  .relink p{margin:0 0 8px}
+  .relink button{margin:0 6px 0 0}
   #canvas{display:block;width:100%;height:100%;touch-action:none}
   .drop{position:absolute;inset:12px;border:1.5px dashed #2E3C45;border-radius:10px;display:flex;
     align-items:center;justify-content:center;text-align:center;color:var(--dimmer);
@@ -208,6 +212,7 @@
 
     <div class="stage" id="stage">
       <canvas id="canvas"></canvas>
+      <div class="relink" id="relink" style="display:none"></div>
       <div class="drop" id="drop">Drop your capillaroscopy images here<br>
         <span style="font-size:11px">or load an entire patient folder</span></div>
       <div class="hud" id="hud" style="display:none">
@@ -368,7 +373,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null
 };
-var APP_VERSION = "6.5";
+var APP_VERSION = "6.7";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -1509,7 +1514,7 @@ function matchSaved(recs, entries){
       return;
     }
     restoreInto(p.r, p.e.o);
-    p.e.used = true; p.r._restored = true; p.r._restoredScore = p.s; hit++;
+    p.e.used = true; p.r._restored = true; p.r._restoredScore = p.s; p.r._home = p.e.P; hit++;
   });
   open.forEach(function(e){ delete e.top; });
   return hit;
@@ -1517,10 +1522,21 @@ function matchSaved(recs, entries){
 function homeOf(r){                        // the folder whose project.json holds this image's work
   var segs = r.path.split("/"); segs.pop();
   var pat = r.meta && r.meta.patient, i;
+  // 1. the folder named after the patient
   for (i = segs.length - 1; i >= 0; i--) if (pat && segs[i] === pat) return segs.slice(0, i + 1).join("/") + "/";
-  var f = folderOf(r.path);
-  for (i = segs.length - 1; i >= 0; i--) if (f && segs[i] === f) return segs.slice(0, i + 1).join("/") + "/";
-  return segs.length ? segs[0] + "/" : "";
+  // 2. otherwise the deepest folder that is not a visit, hand or finger folder
+  var f = folderOf(r.path), F = "";
+  for (i = segs.length - 1; i >= 0; i--) if (f && segs[i] === f){ F = segs.slice(0, i + 1).join("/") + "/"; break; }
+  if (!F) F = segs.length ? segs[0] + "/" : "";
+  // 3. but a renamed patient folder with a plain subfolder added inside it (".../GHA058 klaar/Scans/Visit 1")
+  //    keeps its work where it already was, so deleting that subfolder later cannot take the work with it.
+  //    A folder in between that looks like a patient ID (has a number) is a patient of its own.
+  var P = r._home;
+  if (P && P !== F && F.indexOf(P) === 0){
+    var between = F.slice(P.length).replace(/\/$/, "").split("/");
+    if (!between.some(function(s){ return /\d/.test(s); })) return P;
+  }
+  return F;
 }
 function serializeFor(r, home){            // path stored relative to the folder of its project.json
   var o = serializeRec(r);
@@ -2089,7 +2105,9 @@ function clearWorkspace(){
 }
 async function useDir(dir, add){
   if (!add){                              // starting over: close out every open folder first
-    if (FS.dirs.length && dirty) await fsSave();
+    if (FS.dirs.length && dirty && !(await fsSave()) &&
+        !confirm("Your latest changes could NOT be saved (a folder was moved, renamed or cannot be written).\n\n" +
+                 "Open the new folder anyway and DISCARD those changes?")) return;
     clearWorkspace();
   } else {
     for (var k = 0; k < FS.dirs.length; k++){
@@ -2104,7 +2122,7 @@ async function useDir(dir, add){
               other.name + " first, or load the folders one by one.", 8000); return; } } catch(e){}
     }
   }
-  var entry = {handle:dir, id:uid(), subs:{}, read:{}};
+  var entry = {handle:dir, id:uid(), subs:{}, read:{}, root: dir.name + "/"};
   FS.dirs.push(entry);
   updateLinkBtn();
   var files = [], projects = [], bad = [];
@@ -2163,11 +2181,134 @@ async function useDir(dir, add){
 async function fsSave(){
   if (!FS.dirs.length || FS.busy) return false;
   FS.busy = true;
+  var allOk = true;
   try {
-    for (var k = 0; k < FS.dirs.length; k++){
+    for (var k = 0; k < FS.dirs.length; k++){            // one folder failing never blocks the others
+      var d = FS.dirs[k];
+      try {
+        await saveDir(d);
+        if (d.missing){ d.missing = false; showRelink(); }   // it is back where it was
+      } catch(e){ allOk = false; await saveFailed(d, e); }
+    }
+  } finally { FS.busy = false; }
+  if (allOk){ dirty = false; markSavedDir(); }
+  return allOk;
+}
+async function folderGone(h){             // the folder no longer exists at the place Chrome knows
+  try { for await (var x of h.values()) break; return false; }
+  catch(e){ return !e || e.name === "NotFoundError" || e.name === "NotReadableError" || e.name === "InvalidStateError"; }
+}
+async function saveFailed(d, e){
+  if (await folderGone(d.handle)){
+    if (!d.missing){ d.missing = true; showRelink(); }
+    return;
+  }
+  var now = Date.now();
+  if (!d.warnedAt || now - d.warnedAt > 30000){
+    d.warnedAt = now;
+    toast("Could not write to " + d.handle.name + " (" + ((e && e.name) || "error") + "). " +
+          "Check that the folder is not read-only or full.", 6000);
+  }
+}
+function showRelink(){                    // folders that moved while open: say so, and offer the fix
+  var miss = FS.dirs.filter(function(d){ return d.missing; }), box = $("relink");
+  if (!miss.length){ box.style.display = "none"; box.innerHTML = ""; return; }
+  box.innerHTML = '<p><b>' + esc(miss.map(function(d){ return d.handle.name; }).join(", ")) + '</b> was moved, renamed or ' +
+    'deleted while it was open. Your annotations are safe in this window, but they are <b>not being saved</b>. ' +
+    'Choose the folder at its new place to continue saving. Do not close or reload this page before that.</p>';
+  miss.forEach(function(d){
+    var b = document.createElement("button");
+    b.className = "btn primary"; b.textContent = "Choose " + d.handle.name + " at its new place";
+    b.onclick = function(){ relinkPick(d); };
+    box.appendChild(b);
+  });
+  box.style.display = "";
+  $("sSave").textContent = "NOT saved: folder moved";
+}
+async function relinkPick(d){
+  var dir;
+  try { dir = await window.showDirectoryPicker({mode:"readwrite"}); } catch(e){ return; }
+  var res = await relinkDir(d, dir);
+  if (res !== true) toast(res, 9000);
+}
+async function sameFile(r, f){             // the image in memory and the file on disk are the same file
+  var a = r.file;
+  if (!a || !f || a.size !== f.size) return false;
+  try {
+    var n = Math.min(8192, f.size), m = Math.max(0, f.size - 4096);
+    var parts = await Promise.all([a.slice(0, n), f.slice(0, n), a.slice(m), f.slice(m)].map(function(x){ return x.arrayBuffer(); }));
+    for (var p = 0; p < 4; p += 2){
+      var x = new Uint8Array(parts[p]), y = new Uint8Array(parts[p + 1]);
+      if (x.length !== y.length) return false;
+      for (var i = 0; i < x.length; i++) if (x[i] !== y[i]) return false;
+    }
+    return true;
+  } catch(e){ return false; }
+}
+/* The folder was moved or renamed while open: link the chosen folder to the images already in
+   memory, by each image's path inside the old folder, keep every unsaved change, and save. */
+async function relinkDir(d, dir){
+  for (var k = 0; k < FS.dirs.length; k++){
+    var o = FS.dirs[k]; if (o === d) continue;
+    try { if (await o.handle.isSameEntry(dir) || (o.handle.resolve && await o.handle.resolve(dir)) ||
+              (dir.resolve && await dir.resolve(o.handle)))
+      return "That folder overlaps with " + o.handle.name + ", which is also open. Choose " + d.handle.name + " itself."; } catch(e){}
+  }
+  var files = [], projects = [], subs = {};
+  try { await collect(dir, dir.name + "/", files, projects, [], subs); }
+  catch(e){ return dir.name + " could not be read."; }
+  var recs = S.images.filter(function(r){ return r.dirId === d.id; });
+  var byName = {};
+  files.forEach(function(f){ (byName[f.name] = byName[f.name] || []).push(f); });
+  var map = [], taken = new Set(), missing = [];
+  for (var i = 0; i < recs.length; i++){
+    // candidates with the same name, the best path match first; accept only the identical file,
+    // so another patient's folder with the same layout (L2A.jpg in Visit 1 ...) is never taken
+    var r = recs[i], rs = r.path.split("/");
+    var cands = (byName[r.name] || []).filter(function(f){ return !taken.has(f); })
+      .map(function(f){ return {f:f, s:tailLen(f._path.split("/"), rs)}; })
+      .sort(function(a, b){ return b.s - a.s; });
+    var hitF = null;
+    for (var c = 0; c < cands.length && !hitF; c++) if (await sameFile(r, cands[c].f)) hitF = cands[c].f;
+    if (!hitF) missing.push(r.name);
+    else { taken.add(hitF); map.push({r:r, f:hitF}); }
+  }
+  if (!map.length || missing.length > recs.length * 0.1 ||
+      missing.some(function(n){ return recs.some(function(r){ return r.name === n && r.ann.length; }); }))
+    return "This does not look like " + d.handle.name + " (" + missing.length + " of " + recs.length +
+           " images not found in " + dir.name + "). Choose the folder " + d.handle.name + " itself.";
+  // where did the old folders end up? (same shift for every image, unless the inside changed too)
+  function shift(oldPrefix){
+    for (var i = 0; i < map.length; i++){
+      var op = map[i].r.path, np = map[i].f._path;
+      if (op.indexOf(oldPrefix) === 0){
+        var tail = op.slice(oldPrefix.length);
+        if (np.slice(-tail.length) === tail) return np.slice(0, np.length - tail.length);
+      }
+    }
+    var rootNew = shift.root;
+    return rootNew && oldPrefix.indexOf(d.root) === 0 ? rootNew + oldPrefix.slice(d.root.length) : oldPrefix;
+  }
+  shift.root = null; shift.root = shift(d.root);
+  (d.extra || []).forEach(function(x){ x.home = shift(x.home); });
+  map.forEach(function(m){
+    if (m.r._home) m.r._home = shift(m.r._home);
+    m.r.path = m.f._path; m.r.handle = m.f._handle;
+  });
+  d.handle = dir; d.subs = subs; d.root = dir.name + "/"; d.read = {}; d.missing = false; d.warnedAt = 0;
+  FS.saved = FS.dirs.map(function(x){ return x.handle; });
+  idbPut("dirs", FS.saved).catch(function(){});
+  updateLinkBtn(); showRelink(); renderTree();
+  dirty = true;
+  var ok = await fsSave();
+  toast(ok ? d.handle.name + " linked at its new place · all work saved" + (missing.length ? " · " + missing.length + " image(s) not found there" : "")
+           : d.handle.name + " linked, but saving still failed.", 6000);
+  return true;
+}
+async function saveDir(d){
       // Each patient's work goes into project.json inside that patient's own folder, so the
       // folder can be moved, renamed or opened on its own and still carries its annotations.
-      var d = FS.dirs[k], groups = {}, seen = {};
+      var groups = {}, seen = {};
       S.images.forEach(function(r){
         if (r.dirId !== d.id) return;
         var h = homeOf(r);
@@ -2197,11 +2338,6 @@ async function fsSave(){
         await ew.write(projectJson([])); await ew.close();
         delete d.read[P];
       }
-    }
-    dirty = false; markSavedDir();
-    return true;
-  } catch(e){ toast("Could not write to the folder. Check permissions."); return false; }
-  finally { FS.busy = false; }
 }
 async function closePatient(plabel){
   var list = S.images.filter(function(r){ return groupLabel(r.meta.patient) === plabel; });
@@ -2325,6 +2461,10 @@ async function pickFolder(add){
       if (inp) inp.click();
     }
     return;
+  }
+  var gone = FS.dirs.filter(function(d){ return d.missing; });   // a folder that moved while open?
+  for (var g = 0; g < gone.length; g++){
+    if (await relinkDir(gone[g], dir) === true) return;
   }
   try {
     await useDir(dir, add);
