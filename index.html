@@ -23,7 +23,7 @@
   ::-webkit-scrollbar-thumb{background:#2B3840;border-radius:6px}
   ::-webkit-scrollbar-track{background:transparent}
 
-  .app{display:grid;grid-template-rows:auto 1fr auto;height:100%}
+  .app{display:grid;grid-template-rows:auto minmax(0,1fr) auto auto;height:100%}
   .top{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--panel);
     border-bottom:1px solid var(--line);flex-wrap:wrap}
   .brand{display:flex;align-items:baseline;gap:9px;margin-right:2px}
@@ -43,12 +43,15 @@
   label.file{display:inline-block}
   label.file input{display:none}
 
-  .main{display:grid;grid-template-columns:262px 1fr 272px;min-height:0}
+  .main{display:grid;grid-template-columns:262px minmax(0,1fr) 296px;min-height:0}
   .col{background:var(--panel);min-height:0;display:flex;flex-direction:column}
   .col.left{border-right:1px solid var(--line)}
-  .col.right{border-left:1px solid var(--line);overflow-y:auto}
-  .col.right .colhead{position:sticky;top:0;background:var(--panel);z-index:2}
-  .colhead{padding:9px 12px 7px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+  /* the panel never scrolls sideways: everything in it fits its width (min-width:0 below) and
+     the thin scrollbar has its own reserved strip, so it never covers or pushes the content */
+  .col.right{border-left:1px solid var(--line);overflow-y:auto;overflow-x:hidden;scrollbar-gutter:stable}
+  .col.right::-webkit-scrollbar{width:6px}
+  .col.right > *{min-width:0}
+  .colhead{padding:9px 10px 7px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;
     text-transform:uppercase;color:var(--dimmer);border-bottom:1px solid var(--line);
     display:flex;justify-content:space-between;align-items:center;flex:none;gap:8px}
   .colhead button{background:none;border:none;color:var(--dimmer);font-family:var(--mono);
@@ -79,8 +82,11 @@
   .dot{width:5px;height:5px;border-radius:50%;background:#3A4A53}
   .dot.ok{background:var(--accent)}
   .natag{font-style:normal;font-size:10px;line-height:14px;color:var(--warn);border:1px solid #4A3A18;border-radius:4px;padding:0 4px}
-  .nabtn{width:100%;margin-top:10px}
-  .nabtn.on{border-color:var(--warn);color:var(--warn);background:#2A1D08}
+  /* N/A acts on the whole image, so it sits apart from the drawing tools, in amber */
+  .toolact{margin:0 10px;padding:10px 0 12px;border-top:1px dashed #33424B}
+  .nabtn{width:100%;background:#1D1810;border-color:#4A3A18;color:#E3C27E;font-size:12px;line-height:1.3}
+  .nabtn:hover{background:#261E0F;border-color:#7A5A1E}
+  .nabtn.on,.nabtn.on:hover{background:var(--warn);border-color:var(--warn);color:#231700;font-weight:600}
   .dot.ann{background:var(--warn)}
   .empty{padding:26px 16px;color:var(--dimmer);font-size:12px;text-align:center;line-height:1.6}
 
@@ -89,6 +95,16 @@
           background:#2A1D08;border:1px solid var(--warn);color:#FFE2A8;font-size:13px;line-height:1.45}
   .relink p{margin:0 0 8px}
   .relink button{margin:0 6px 0 0}
+  /* work in project.json whose image is no longer in the folder: a quiet bar, never a dialog */
+  .orph{background:#1D1810;border-top:1px solid #4A3A18;color:#F1DDB0;font-size:12px}
+  .orphrow{display:flex;align-items:center;gap:8px;padding:5px 12px;flex-wrap:wrap}
+  .orphtxt{flex:1 1 260px;min-width:0}
+  .orph .btn{padding:3px 9px;font-size:11.5px}
+  .orph .orphx{padding:1px 8px;font-size:15px;line-height:1;color:var(--dim);border-color:transparent}
+  .orph .orphx:hover{color:var(--text);border-color:var(--line)}
+  .orphlist{max-height:150px;overflow:auto;padding:0 12px 8px;color:#D8C9A6}
+  .orphlist p{margin:2px 0 6px;color:var(--dim);font-size:11.5px}
+  .orphlist ul{margin:0 0 4px;padding-left:18px;font-family:var(--mono);font-size:11px}
   #canvas{display:block;width:100%;height:100%;touch-action:none}
   .drop{position:absolute;inset:12px;border:1.5px dashed #2E3C45;border-radius:10px;display:flex;
     align-items:center;justify-content:center;text-align:center;color:var(--dimmer);
@@ -107,28 +123,31 @@
   .band-x span:first-child{transform:none}
   .band-x span:last-child{transform:translateX(-100%)}
 
-  .tools{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px}
-  .tool{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px;background:var(--panel2);
-    border:1px solid var(--line);text-align:left}
+  /* minmax(0,1fr): a column never grows past half the panel, however long a label is */
+  .tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:10px}
+  .tool{display:flex;align-items:center;gap:5px;padding:7px 6px;border-radius:6px;background:var(--panel2);
+    border:1px solid var(--line);text-align:left;min-width:0}
+  .block .tool{width:100%}
   .tool:hover{border-color:#3B4C57}
   .tool.on{background:#123230;border-color:var(--accent)}
   .tool:focus,.tool:focus-visible,.dirb:focus{outline:none}   /* only the teal "on" state marks the tool */
-  .tool .gl{width:19px;flex:none;display:grid;place-items:center}
+  .tool .gl{width:18px;flex:none;display:grid;place-items:center}
   .tool .gl svg{display:block}
-  .tool .nm{font-size:11.5px;line-height:1.25}
-  .tool .k{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--dimmer);
-    border:1px solid var(--line);border-radius:3px;padding:0 4px}
+  /* the label takes the free space and wraps if it must; the key badge never leaves the button */
+  .tool .nm{font-size:11.5px;line-height:1.25;flex:1 1 auto;min-width:0;overflow-wrap:break-word;hyphens:auto}
+  .tool .k{flex:none;margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--dimmer);
+    border:1px solid var(--line);border-radius:3px;padding:0 3px}
   .tool.wide{grid-column:1/-1}
-  .tool .dirs{margin-left:auto;display:flex;gap:3px}
-  .tool .dirs + .k{margin-left:6px}
-  .dirb{width:22px;height:20px;display:grid;place-items:center;border:1px solid var(--line);border-radius:4px;
+  .tool .dirs{flex:none;margin-left:auto;display:flex;gap:3px}
+  .tool .dirs + .k{margin-left:3px}
+  .dirb{width:20px;height:20px;display:grid;place-items:center;border:1px solid var(--line);border-radius:4px;
         color:var(--dim);background:var(--panel)}
   .dirb:hover{border-color:#3B4C57;color:var(--text)}
   .dirb.on{border-color:var(--accent);color:var(--accent)}
   .dirb.sel{border-color:#8FA3AE;color:#D5DEE3;box-shadow:inset 0 0 0 1px #8FA3AE}
   .tool .gl svg{transition:transform .12s}
 
-  .block{padding:10px 12px;border-top:1px solid var(--line)}
+  .block{padding:10px;border-top:1px solid var(--line)}
   .block h4{margin:0 0 7px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;
     text-transform:uppercase;color:var(--dimmer);font-weight:400}
   .row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2.5px 0}
@@ -173,7 +192,7 @@
   .xt th{color:var(--dimmer);font-weight:400;font-size:10px}
   .xt td.lbl{text-align:left;color:var(--dim);white-space:nowrap;background:#0F161A}
   .xt td.val{color:var(--text)}
-  .toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%) translateY(8px);background:#12312F;
+  .toast{position:fixed;left:50%;bottom:calc(44px + var(--orphH, 0px));transform:translateX(-50%) translateY(8px);background:#12312F;
     border:1px solid #1D4340;color:var(--text);padding:8px 14px;border-radius:7px;font-size:12px;
     opacity:0;transition:.2s;pointer-events:none;z-index:60}
   .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -227,7 +246,7 @@
       </div>
     </div>
 
-    <div class="col right">
+    <div class="col right" lang="en">
       <div class="colhead"><span>Tools</span></div>
       <div class="tools">
         <button class="tool wide" data-tool="select"><span class="gl">✥</span><span class="nm">Select</span><span class="k">V</span></button>
@@ -239,14 +258,18 @@
         <button class="tool" data-tool="dollar2s"><span class="gl" style="font-size:10px">$$*</span><span class="nm">Abn. shape 4</span><span class="k">6</span></button>
         <button class="tool" data-tool="triangle"><span class="gl">▲</span><span class="nm">Haemorrhage</span><span class="k">7</span></button>
         <button class="tool" data-tool="measure"><span class="gl" style="color:#E8262A">|</span><span class="nm">Measure</span><span class="k">8</span></button>
-        <button class="tool wide" data-tool="scale"><span class="gl" style="color:var(--accent)">⊞</span><span class="nm">Set scale (1 mm grid)</span><span class="k">9</span></button>
+      </div>
+      <div class="toolact">
+        <button class="btn nabtn" id="bNA"
+          title="Not a drawing tool: marks the whole image. It becomes N/A in Excel and counts in no statistic. Its annotations are kept.">Mark image as N/A (not assessable)</button>
       </div>
 
       <div class="block">
         <h4>Scale</h4>
-        <div class="scaleflag bad" id="scaleFlag">Not calibrated</div>
-        <button class="btn ghost" id="bScaleAll" style="width:100%;margin-top:7px">Apply scale to this patient</button>
+        <button class="tool wide" data-tool="scale"><span class="gl" style="color:var(--accent)">⊞</span><span class="nm">Set scale (1 mm grid)</span><span class="k">9</span></button>
         <div class="hint">Drag a line along one side of the 1 mm square, then choose the unit: <b>mm</b>, not µm.</div>
+        <div class="scaleflag bad" id="scaleFlag" style="margin-top:7px">Not calibrated</div>
+        <button class="btn ghost" id="bScaleAll" style="width:100%;margin-top:7px">Apply scale to this patient</button>
       </div>
 
       <div class="block">
@@ -260,8 +283,6 @@
         <div class="row"><span class="k">Abnormal shape 4 ($$*)</span><span class="v" id="cD2s">0</span></div>
         <div class="row"><span class="k">Haemorrhages</span><span class="v" id="cHem">0</span></div>
         <div class="row"><span class="k">Pattern (EULAR)</span><span class="v" id="cPat">–</span></div>
-        <button class="btn ghost nabtn" id="bNA"
-          title="For an image that cannot be assessed: it becomes N/A in Excel and counts in no statistic. Its annotations are kept.">Mark image as N/A (not assessable)</button>
       </div>
 
       <div class="block">
@@ -289,6 +310,15 @@
         <div class="hint">The original image is never modified. Annotations live in a separate layer.</div>
       </div>
     </div>
+  </div>
+
+  <div class="orph" id="orph" style="display:none" role="status">
+    <div class="orphrow">
+      <span class="orphtxt" id="orphTxt"></span>
+      <button class="btn" id="orphShow">Show list</button>
+      <button class="btn ghost orphx" id="orphX" title="Hide this message (nothing is removed)" aria-label="Hide">&times;</button>
+    </div>
+    <div class="orphlist" id="orphList" style="display:none"></div>
   </div>
 
   <div class="status">
@@ -378,7 +408,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null
 };
-var APP_VERSION = "6.8";
+var APP_VERSION = "7.0";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -2144,7 +2174,7 @@ function clearWorkspace(){
   FS.dirs = [];
   dirty = false;
   $("sSave").textContent = "Not saved";
-  draw(); renderTree(); syncPanel();
+  draw(); renderTree(); syncPanel(); showOrphans();
 }
 async function useDir(dir, add){
   if (!add){                              // starting over: close out every open folder first
@@ -2206,21 +2236,60 @@ async function useDir(dir, add){
   var kept = entries.filter(function(e){
     return !e.used && !e.superseded && ((e.o.ann && e.o.ann.length) || e.o.pxPerMm);
   });
+  // They are marked as orphans: the bar at the bottom lists them and can remove them on request.
   if (kept.length) entry.extra = (entry.extra || []).concat(kept.map(function(e){
     if (!e.o.t && e.t) e.o.t = new Date(e.t).toISOString();
-    return {o:e.o, home:e.P};
+    return {o:e.o, home:e.P, orphan:true};
   }));
-  var lost = kept.filter(function(e){ return e.o.ann && e.o.ann.length; });
+  showOrphans();
   setTimeout(function(){
     toast(dir.name + " loaded · " + files.length + " images · " +
       (loaded ? restored + " with saved work" : "no project.json found"), 4000);
-    if (lost.length) alert(lost.length + " annotated image(s) in project.json could not be matched to an image in " +
-      dir.name + ":\n\n" + lost.slice(0, 8).map(function(e){ return e.o.path; }).join("\n") +
-      (lost.length > 8 ? "\n\u2026" : "") +
-      "\n\nTheir annotations are kept in project.json and are not deleted. If files were renamed or moved " +
-      "outside the tool, give them back their old name or place and load the folder again.");
   }, 700);
 }
+// ---- orphans: annotated work in project.json whose image is no longer in the folder ----
+function orphansOf(d){
+  return (d.extra || []).filter(function(x){ return x.orphan && x.o.ann && x.o.ann.length; });
+}
+function orphanDirs(){ return FS.dirs.filter(function(d){ return !d.orphHidden && orphansOf(d).length; }); }
+var orphSig = "";
+function showOrphans(){
+  var box = $("orph"), list = $("orphList"), ds = orphanDirs();
+  if (!ds.length){
+    box.style.display = "none"; list.style.display = "none"; $("orphShow").textContent = "Show list"; orphSig = "";
+    orphHeight();
+    return;
+  }
+  var n = 0, names = ds.map(function(d){ n += orphansOf(d).length; return d.handle.name; });
+  var sig = ds.map(function(d){ return d.id + ":" + orphansOf(d).length; }).join("|");
+  if (sig === orphSig && box.style.display !== "none") return;      // nothing changed
+  orphSig = sig;
+  $("orphTxt").innerHTML = "<b>" + n + "</b> annotated image" + (n === 1 ? "" : "s") + " in project.json " +
+    (n === 1 ? "does" : "do") + " not belong to " + (ds.length === 1 ? "this folder" : "these folders") +
+    " (" + esc(names.join(", ")) + "): " + (n === 1 ? "that image is" : "those images are") + " no longer in it.";
+  list.innerHTML = '<p>Their annotations are kept in project.json, unchanged. They are not shown, not counted ' +
+    'and not in the Excel output, so they change nothing.</p>' +
+    ds.map(function(d){
+      return (ds.length > 1 ? "<b>" + esc(d.handle.name) + "</b>" : "") + "<ul>" +
+        orphansOf(d).map(function(x){ return "<li>" + esc(x.o.path || x.o.name || "") + "</li>"; }).join("") + "</ul>";
+    }).join("");
+  box.style.display = "";
+  orphHeight();
+}
+function orphHeight(){                            // toasts appear above the bar, not over it
+  var box = $("orph");
+  document.documentElement.style.setProperty("--orphH", (box.style.display === "none" ? 0 : box.offsetHeight) + "px");
+}
+$("orphShow").onclick = function(){
+  var open = $("orphList").style.display === "none";
+  $("orphList").style.display = open ? "" : "none";
+  this.textContent = open ? "Hide list" : "Show list";
+  orphHeight();
+};
+$("orphX").onclick = function(){                  // hide until the folder is loaded again; nothing removed
+  orphanDirs().forEach(function(d){ d.orphHidden = true; });
+  showOrphans();
+};
 async function fsSave(){
   if (!FS.dirs.length || FS.busy) return false;
   FS.busy = true;
@@ -2341,7 +2410,7 @@ async function relinkDir(d, dir){
   d.handle = dir; d.subs = subs; d.root = dir.name + "/"; d.read = {}; d.missing = false; d.warnedAt = 0;
   FS.saved = FS.dirs.map(function(x){ return x.handle; });
   idbPut("dirs", FS.saved).catch(function(){});
-  updateLinkBtn(); showRelink(); renderTree();
+  updateLinkBtn(); showRelink(); renderTree(); showOrphans();
   dirty = true;
   var ok = await fsSave();
   toast(ok ? d.handle.name + " linked at its new place · all work saved" + (missing.length ? " · " + missing.length + " image(s) not found there" : "")
@@ -2436,7 +2505,7 @@ async function closePatient(plabel){
     S.idx = S.images.indexOf(curRec);
   }
   if (!S.images.length){ $("drop").style.display = "flex"; draw(); }
-  updateLinkBtn(); renderTree(); syncPanel();
+  updateLinkBtn(); renderTree(); syncPanel(); showOrphans();
   toast(linked.length ? plabel + " saved and closed." : plabel + " closed.");
 }
 function dirNames(){
