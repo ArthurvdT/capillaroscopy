@@ -78,6 +78,9 @@
   .leaf .tags{margin-left:auto;display:flex;gap:4px;align-items:center;flex:none}
   .dot{width:5px;height:5px;border-radius:50%;background:#3A4A53}
   .dot.ok{background:var(--accent)}
+  .natag{font-style:normal;font-size:10px;line-height:14px;color:var(--warn);border:1px solid #4A3A18;border-radius:4px;padding:0 4px}
+  .nabtn{width:100%;margin-top:10px}
+  .nabtn.on{border-color:var(--warn);color:var(--warn);background:#2A1D08}
   .dot.ann{background:var(--warn)}
   .empty{padding:26px 16px;color:var(--dimmer);font-size:12px;text-align:center;line-height:1.6}
 
@@ -257,6 +260,8 @@
         <div class="row"><span class="k">Abnormal shape 4 ($$*)</span><span class="v" id="cD2s">0</span></div>
         <div class="row"><span class="k">Haemorrhages</span><span class="v" id="cHem">0</span></div>
         <div class="row"><span class="k">Pattern (EULAR)</span><span class="v" id="cPat">–</span></div>
+        <button class="btn ghost nabtn" id="bNA"
+          title="For an image that cannot be assessed: it becomes N/A in Excel and counts in no statistic. Its annotations are kept.">Mark image as N/A (not assessable)</button>
       </div>
 
       <div class="block">
@@ -373,7 +378,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null
 };
-var APP_VERSION = "6.7";
+var APP_VERSION = "6.8";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -760,8 +765,7 @@ function leafRow(i, depth){
   t.className = "nm"; t.textContent = keyOf(r).leaf;
   var tags = document.createElement("span");
   tags.className = "tags";
-  tags.innerHTML = '<i class="dot' + (r.pxPerMm ? " ok" : "") + '"></i>' +
-                   '<i class="dot' + (r.ann.length ? " ann" : "") + '"></i>';
+  tags.innerHTML = leafTags(r);
   el.appendChild(cv); el.appendChild(t); el.appendChild(tags);
   r.row = tags;                          // handle for cheap dot updates
   el.onclick = function(){ select(i); };
@@ -781,8 +785,12 @@ function markLeaf(r){                    // counts changed: update the dots, ski
     break;
   }
   if (!r.row) return;
-  r.row.innerHTML = '<i class="dot' + (r.pxPerMm ? " ok" : "") + '"></i>' +
-                    '<i class="dot' + (r.ann.length ? " ann" : "") + '"></i>';
+  r.row.innerHTML = leafTags(r);
+}
+function leafTags(r){                     // scale set · annotated · N/A
+  return (r.na ? '<i class="natag" title="Not assessable: N/A in Excel">N/A</i>' : "") +
+         '<i class="dot' + (r.pxPerMm ? " ok" : "") + '"></i>' +
+         '<i class="dot' + (r.ann.length ? " ann" : "") + '"></i>';
 }
 function esc(s){ return String(s).replace(/[&<>]/g, function(c){
   return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c]; }); }
@@ -874,6 +882,17 @@ function draw(){
   if (S.drag && S.drag.kind === "line") drawGhost(S.drag);
   ctx.restore();
   drawScaleBar();
+  if (r.na) drawNALabel(W);
+}
+function drawNALabel(W){                  // on screen: this image is N/A
+  var dpr = window.devicePixelRatio || 1, t = "N/A \u00b7 not assessable \u00b7 not counted in Excel";
+  ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.font = "600 13px " + UIFONT;
+  var w = ctx.measureText(t).width + 24, x = (W - w) / 2;
+  ctx.fillStyle = "rgba(42,29,8,0.94)"; ctx.fillRect(x, 12, w, 30);
+  ctx.strokeStyle = "#FFB020"; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, 12.5, w - 1, 29);
+  ctx.fillStyle = "#FFE2A8"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(t, W / 2, 27);
+  ctx.restore();
 }
 
 /* Selection: a halo that follows the outline of the shape itself (every type, every
@@ -1260,7 +1279,7 @@ var PATNAMES = ["Normal","Non-specific","Early","Active","Late"];
 function patternCode(r, s){
   // EULAR pattern, applied mechanically to the counts of one image.
   // Density = capillaries in the 1 mm square (giants included).
-  if (!r || !r.ann.length) return null;
+  if (!r || r.na || !r.ann.length) return null;          // N/A image: no pattern, counts nowhere
   var dens = s.cap, abn = s.hash + s.dollar + s.d2 + s.d2s;
   if (s.giant > 0) return dens >= 7 ? 2 : 3;          // early / active scleroderma
   if (dens <= 3 && abn > 0) return 4;                 // late scleroderma: no giants
@@ -1291,6 +1310,7 @@ function syncPanel(){
     ["cCap","cDil","cGia","cHas","cDol","cD2","cD2s"].forEach(function(i){ $(i).textContent = "0"; });
     $("cHem").textContent = "No";
     $("cPat").textContent = "–";
+    $("bNA").classList.remove("on"); $("bNA").textContent = "Mark image as N/A (not assessable)";
     return;
   }
   if (r.pxPerMm){
@@ -1305,7 +1325,9 @@ function syncPanel(){
   $("cD2").textContent = s.d2; $("cD2s").textContent = s.d2s;
   $("cHem").textContent = s.hem > 0 ? "Yes" : "No";
   var pc = patternCode(r, s);
-  $("cPat").textContent = pc == null ? "–" : PATNAMES[pc];
+  $("cPat").textContent = r.na ? "N/A" : (pc == null ? "–" : PATNAMES[pc]);
+  $("bNA").classList.toggle("on", !!r.na);
+  $("bNA").textContent = r.na ? "N/A: not assessable (click to undo)" : "Mark image as N/A (not assessable)";
   $("mPat").value = r.meta.patient; $("mVis").value = r.meta.visit; $("mVis").classList.remove("bad"); $("mPh").classList.remove("bad");
   $("mHand").value = r.meta.hand; $("mFin").value = r.meta.finger; $("mPh").value = r.meta.photo;
   $("sSel").textContent = S.sel
@@ -1572,6 +1594,7 @@ function restoreInto(r, o){
   o._used = true;                        // one saved entry restores at most one image
   r.ann = (o.ann || []).slice();
   r.pxPerMm = o.pxPerMm || null;
+  r.na = !!o.na;
   r.calib = o.calib ? Object.assign({}, o.calib) : null;
   if (o.meta) r.meta = Object.assign({}, o.meta);   // never share meta between images
   r.undo = []; r.redo = [];
@@ -1688,6 +1711,13 @@ function renderPngBytes(i){               // loads the image, draws, and release
       S.zoom = 1; S.panX = 0; S.panY = 0; S.sel = null;
       ctx.drawImage(im, 0, 0);
       r.ann.forEach(function(a){ drawAnn(a, false); });
+      if (r.na){                            // N/A also visible on the exported image
+        var fs = Math.round(r.w * 0.028);
+        ctx.font = "600 " + fs + "px " + UIFONT; ctx.textAlign = "left"; ctx.textBaseline = "top";
+        var tw = ctx.measureText("N/A (not assessable)").width;
+        ctx.fillStyle = "rgba(0,0,0,0.65)"; ctx.fillRect(fs * 0.6, fs * 0.6, tw + fs * 0.8, fs * 1.6);
+        ctx.fillStyle = "#FFB020"; ctx.fillText("N/A (not assessable)", fs, fs);
+      }
     } catch(e){
       r.failWhy = "drawing failed (" + ((e && e.name) || "error") + ")";
       off = null;
@@ -1712,7 +1742,7 @@ function csvPair(list){
               "n_capillaries","n_dilations","n_giants",
               "n_abnormal_shape_1","n_abnormal_shape_2","n_abnormal_shape_3","n_abnormal_shape_4",
               "haemorrhages_present","pattern",
-              "n_measurements","mean_diameter_um","min_diameter_um","max_diameter_um"].join(",")];
+              "n_measurements","mean_diameter_um","min_diameter_um","max_diameter_um","not_assessable"].join(",")];
   var mes = [["tool_version","patient","visit","hand","finger","photo","file","measurement_id",
               "diameter_um","diameter_px","class","x1","y1","x2","y2"].join(",")];
   list.forEach(function(r){
@@ -1724,7 +1754,8 @@ function csvPair(list){
       r.ann.length ? patternCode(r, s) : "",
       s.meas.length, s.mean != null ? fmt(s.mean,2) : "",
       s.meas.length ? fmt(Math.min.apply(null,s.meas),2) : "",
-      s.meas.length ? fmt(Math.max.apply(null,s.meas),2) : ""
+      s.meas.length ? fmt(Math.max.apply(null,s.meas),2) : "",
+      r.na ? 1 : 0
     ]).map(q).join(","));
     r.ann.forEach(function(a){
       if (a.type !== "measure") return;
@@ -1739,7 +1770,7 @@ function csvPair(list){
 function serializeRec(r){
   if (r.w === undefined) return r;              // already serialized (a patient closed earlier)
   return {name:r.name, path:r.path, folder:folderPath(r), width:r.w, height:r.h,
-          pxPerMm:r.pxPerMm, calib:r.calib, meta:r.meta, ann:r.ann};
+          pxPerMm:r.pxPerMm, calib:r.calib, meta:r.meta, ann:r.ann, na: r.na ? true : undefined};
 }
 function projectJson(list){
   list = list || S.images;
@@ -1837,7 +1868,7 @@ function slotImage(list, pl, v, sl){
            m.hand === sl.h && m.finger === sl.f && m.photo === sl.p;
   });
   if (!cand.length) return null;
-  var ann = cand.filter(function(r){ return r.ann.length; });
+  var ann = cand.filter(function(r){ return r.ann.length || r.na; });
   return ann[0] || cand[0];
 }
 function meanSd(a){                              // sample SD (n-1), as in the study sheet
@@ -1861,10 +1892,12 @@ function xRows(list){
   list.forEach(function(r){
     var pl = groupLabel(r.meta.patient), m = r.meta;
     if (pats.indexOf(pl) < 0) pats.push(pl);
-    if (!r.ann.length) return;
-    var st0 = stats(r);
-    if (st0.loneNoArrow) lonely.push(r.name);
-    if (st0.noScale) noScale.push(r.name);
+    if (!r.ann.length && !r.na) return;
+    if (!r.na){                            // an N/A image counts nowhere, so it needs no warning
+      var st0 = stats(r);
+      if (st0.loneNoArrow) lonely.push(r.name);
+      if (st0.noScale) noScale.push(r.name);
+    }
     if (!m.visit) noVisit++;
     if (!m.visit || !m.hand || !m.finger || !m.photo){ leftOut.push(r.name); return; }   // fits no column
     var key = pl + " visit " + m.visit + " " + m.hand + m.finger + photoLetter(m.photo);
@@ -1881,10 +1914,11 @@ function xRows(list){
     vs.sort(natCmp);
     vs.forEach(function(v){
       var cells = [], dens = [], dil = [], abn = [], gia = [], pat = [];
-      var anyA = 0, anyH = 0, anyG = 0, nAnn = 0;
+      var anyA = 0, anyH = 0, anyG = 0, nAnn = 0, nNA = 0;
       SLOTS.forEach(function(sl){
         var r = slotImage(list, pl, v, sl);
         if (!r){ for (var q = 0; q < 10; q++) cells.push("N/A"); return; }      // no photo at this position
+        if (r.na){ for (var q2 = 0; q2 < 10; q2++) cells.push("N/A"); nNA++; return; }   // not assessable
         if (!r.ann.length){ cells.push("","","","","","","","","",""); return; } // photo present, not annotated
         var st = stats(r), ab = st.hash + st.dollar + st.d2 + st.d2s, pc = patternCode(r, st);
         nAnn++;
@@ -1892,10 +1926,11 @@ function xRows(list){
         dens.push(st.cap); dil.push(st.dil); abn.push(ab); gia.push(st.giant); pat.push(pc);
         if (ab) anyA = 1; if (st.hem) anyH = 1; if (st.giant) anyG = 1;
       });
-      if (!nAnn) return;                         // a visit with nothing annotated gets no row
-      var overall = Math.max.apply(null, pat);
+      if (!nAnn && !nNA) return;                 // a visit with nothing annotated gets no row
+      var overall = pat.length ? Math.max.apply(null, pat) : "";
+      if (!nAnn){ anyA = ""; anyH = ""; anyG = ""; }   // every image N/A: nothing is known
       rows.push({
-        pl: pl, v: v, n: nAnn, overall: overall,
+        pl: pl, v: v, n: nAnn, na: nNA, overall: overall,
         cells: [pl, "visit " + v].concat(cells, [
           meanSd(dens), median(dens),
           meanSd(dil),  median(dil),
@@ -1990,7 +2025,8 @@ function xRender(data){
   var h = warn + '<table class="xt"><tr><th>Identifier</th><th>Visit</th><th>Annotated</th><th>Overall pattern</th></tr>';
   data.rows.forEach(function(r){
     h += '<tr><td class="lbl">' + esc(r.pl) + '</td><td class="val">visit ' + esc(r.v) + '</td>' +
-         '<td class="val">' + r.n + ' / ' + SLOTS.length + '</td><td class="val">' + esc(PATNAMES[r.overall]) + '</td></tr>';
+         '<td class="val">' + r.n + ' / ' + SLOTS.length + (r.na ? ' \u00b7 ' + r.na + ' N/A' : '') + '</td>' +
+         '<td class="val">' + esc(r.overall === "" ? "N/A" : PATNAMES[r.overall]) + '</td></tr>';
   });
   $("xPrev").innerHTML = h + "</table>";
 }
@@ -2003,6 +2039,13 @@ $("bXls").onclick = function(){
   $("veil2").classList.add("on");
 };
 $("xClose").onclick = function(){ $("veil2").classList.remove("on"); };
+$("bNA").onclick = function(){
+  var r = cur(); if (!r) return;
+  r.na = !r.na; dirty = true;
+  syncPanel(); markLeaf(r); draw();
+  toast(r.na ? "Image marked N/A: it is N/A in Excel and counts in no statistic. Its annotations are kept."
+             : "N/A removed: this image counts again.", 4000);
+};
 $("veil2").addEventListener("keydown", function(e){ if (e.key === "Escape") $("xClose").click(); });
 (function(){                              // default from this computer's number format, remembered
   var d = (1.5).toLocaleString().indexOf(",") >= 0 ? "," : ".";
