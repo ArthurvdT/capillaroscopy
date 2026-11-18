@@ -368,7 +368,7 @@ var S = {
   scheme: "black", markerScale: 1,
   open: {}, pending: null
 };
-var APP_VERSION = "6.4";
+var APP_VERSION = "6.5";
 var GIANT = 50, DILAT = 20;
 var UIFONT = 'Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 
@@ -462,7 +462,7 @@ function addFiles(files){
     projs.forEach(function(f){
       var fr = new FileReader();
       fr.onload = function(){
-        try { applyProject(JSON.parse(fr.result), !isFirst); isFirst = false; } catch(e){}
+        try { applyProject(JSON.parse(fr.result), !isFirst, pathOf(f).replace(/project\.json$/i, ""), f.lastModified); isFirst = false; } catch(e){}
         if (--left === 0) retry();
       };
       fr.onerror = function(){ if (--left === 0) retry(); };
@@ -501,18 +501,17 @@ function addFiles(files){
     toast(skipped + " duplicate or annotated file" + (skipped > 1 ? "s" : "") + " skipped.");
   }, 900);
   if (!arr.length) return;
-  var first = S.images.length;
+  var first = S.images.length, recs = [];
   arr.forEach(function(f){
     var path = pathOf(f);
     var rec = {id:uid(), name:f.name, path:path, file:f, handle:f._handle || null,
                img:null, w:0, h:0, ready:false,
                dirId:f._dirId || null,
                pxPerMm:null, calib:null, meta:parseMeta(path), ann:[], undo:[], redo:[]};
-    var saved = pendingFor(path, f.name);
-    if (saved) restoreInto(rec, saved);
-    S.images.push(rec);
+    S.images.push(rec); recs.push(rec);
     scanQ.push(rec);
   });
+  if (S.pending && S.pending.length) matchSaved(recs, S.pending);   // all at once: no image is guessed
   if (S.idx < 0) select(first);
   renderTreeSoon();
   scanNext();
@@ -1448,11 +1447,85 @@ $("fDir").onchange   = function(){
   };
   if (FS.dirs.length && dirty){ fsSave().then(go, go); } else go();
 };
-function pendingFor(path, name){
-  if (!S.pending) return null;
-  var o = S.pending[path];
-  if (!o || o === "ambiguous") o = S.pending[name];
-  if (!o || o === "ambiguous" || o._used) return null;
+/* ---- saved work -> images ----
+   Every entry belongs to the project.json it was read from. That file sits in a folder P, and
+   the entry's path is stored as "<name of that folder>/<path inside it>". An image only takes
+   work from a project.json in one of its own parent folders, so work never crosses to another
+   patient. Matching compares the path INSIDE that folder, not the folder's own name or place,
+   so a patient folder can be moved, renamed or put inside another folder without losing its
+   annotations. */
+function entryList(data, P, fileTime){
+  var ft = Date.parse(data && data.saved) || fileTime || 0;
+  return ((data && data.images) || []).map(function(o){
+    var segs = String(o.path || o.name || "").split("/");
+    return {o:o, P:P || "", segs:segs, rel: segs.length > 1 ? segs.slice(1).join("/") : segs[0],
+            name: o.name || segs[segs.length - 1], t: Date.parse(o.t) || ft,
+            used:false, superseded:false};
+  });
+}
+function tailLen(a, b){                    // equal trailing path segments
+  var n = 0;
+  for (var i = a.length - 1, j = b.length - 1; i >= 0 && j >= 0 && a[i] === b[j]; i--, j--) n++;
+  return n;
+}
+function matchSaved(recs, entries){
+  var open = entries.filter(function(e){ return !e.used && !e.superseded; });
+  if (!open.length || !recs.length) return 0;
+  var byName = {}, folders = {};
+  open.forEach(function(e){ (byName[e.name] = byName[e.name] || []).push(e); folders[e.P] = 1; });
+  var pairs = [];
+  recs.forEach(function(r){
+    var cands = byName[r.name]; if (!cands) return;
+    var rs = r.path.split("/"), nearest = "";
+    Object.keys(folders).forEach(function(P){
+      if (r.path.indexOf(P) === 0 && P.length > nearest.length) nearest = P;
+    });
+    var pf = folderOf(r.path);
+    cands.forEach(function(e){
+      if (e.P && r.path.indexOf(e.P) !== 0) return;          // only from its own parent folders
+      var exact = e.P + e.rel === r.path;
+      if (!exact){
+        // a looser match (subfolder added inside the patient folder) only from the nearest
+        // project.json, and never across two folders that look like different patient IDs
+        if (e.P !== nearest) return;
+        var sp = e.o.meta && e.o.meta.patient;
+        if (sp && pf && sp !== pf && /\d/.test(pf)) return;
+      }
+      var s = exact ? 1000 : tailLen(e.segs, rs);
+      pairs.push({r:r, e:e, s:s});
+      var b = e.top;
+      if (!b || s > b.s) e.top = {s:s, n:1};
+      else if (s === b.s) b.n++;
+    });
+  });
+  // an entry only goes to the image it fits best; two images fitting equally well = ambiguous
+  pairs = pairs.filter(function(p){ return p.e.top.n === 1 && p.s === p.e.top.s; });
+  pairs.sort(function(a, b){ return b.s - a.s || b.e.t - a.e.t; });   // then the newest save wins
+  var hit = 0;
+  pairs.forEach(function(p){
+    if (p.e.used) return;
+    if (p.r._restored){                                       // already has (newer) work
+      if (p.s === p.r._restoredScore) p.e.superseded = true;   // an older copy of the same image
+      return;
+    }
+    restoreInto(p.r, p.e.o);
+    p.e.used = true; p.r._restored = true; p.r._restoredScore = p.s; hit++;
+  });
+  open.forEach(function(e){ delete e.top; });
+  return hit;
+}
+function homeOf(r){                        // the folder whose project.json holds this image's work
+  var segs = r.path.split("/"); segs.pop();
+  var pat = r.meta && r.meta.patient, i;
+  for (i = segs.length - 1; i >= 0; i--) if (pat && segs[i] === pat) return segs.slice(0, i + 1).join("/") + "/";
+  var f = folderOf(r.path);
+  for (i = segs.length - 1; i >= 0; i--) if (f && segs[i] === f) return segs.slice(0, i + 1).join("/") + "/";
+  return segs.length ? segs[0] + "/" : "";
+}
+function serializeFor(r, home){            // path stored relative to the folder of its project.json
+  var o = serializeRec(r);
+  o.path = home.replace(/\/$/, "").split("/").pop() + "/" + r.path.slice(home.length);
+  o.t = new Date().toISOString();
   return o;
 }
 function unrotate(o){                    // v5.5 could rotate images: bring that work back to the
@@ -1487,21 +1560,12 @@ function restoreInto(r, o){
   if (o.meta) r.meta = Object.assign({}, o.meta);   // never share meta between images
   r.undo = []; r.redo = [];
 }
-function applyProject(data, merge){
-  if (!merge || !S.pending) S.pending = {};
-  (data.images||[]).forEach(function(o){
-    S.pending[o.path] = o;
-    // a bare file name is only a valid key when it is unambiguous
-    var prev = S.pending[o.name];
-    if (prev === undefined) S.pending[o.name] = o;
-    else if (prev !== o && prev !== "ambiguous" && prev.path === o.path) S.pending[o.name] = o;  // exact duplicate (older files)
-    else if (prev !== o) S.pending[o.name] = "ambiguous";
-  });
-  var hit = 0;
-  S.images.forEach(function(r){            // images already open: exact path only, never by bare
-    var o = S.pending[r.path];             // file name, or another folder's work could land here
-    if (o && o !== "ambiguous" && !o._used){ restoreInto(r, o); hit++; }
-  });
+function applyProject(data, merge, P, fileTime){
+  if (!merge || !Array.isArray(S.pending)) S.pending = [];
+  var entries = entryList(data, P || "", fileTime);
+  S.pending = S.pending.concat(entries);
+  // images already open that have no work yet (a project.json added on its own)
+  var hit = matchSaved(S.images.filter(function(r){ return !r.ann.length && !r._restored; }), entries);
   S.sel = null; draw(); syncPanel(); renderTree();
   return hit;
 }
@@ -1992,13 +2056,14 @@ function idbGet(k){
   });
 }
 
-async function collect(dir, prefix, out, projects, bad){
+async function collect(dir, prefix, out, projects, bad, subs){
+  if (subs) subs[prefix] = dir;           // so each patient folder can get its own project.json
   for await (var entry of dir.values()){
     var name = entry.name;
     if (name.charAt(0) === "." ) continue;
     if (entry.kind === "directory"){
       if (name === "annotated") continue;
-      try { await collect(entry, prefix + name + "/", out, projects, bad); }
+      try { await collect(entry, prefix + name + "/", out, projects, bad, subs); }
       catch(e){ if (bad) bad.push(prefix + name + "/"); else throw e; }   // skip only that subfolder
     } else if (/\.(jpe?g|png|tiff?|bmp|webp)$/i.test(name)){
       var f;
@@ -2008,7 +2073,7 @@ async function collect(dir, prefix, out, projects, bad){
       f._handle = entry;                  // kept so a stale snapshot can be refreshed
       out.push(f);
     } else if (/^project\.json$/i.test(name) && projects){
-      projects.push(entry);               // also picked up from subfolders
+      projects.push({h:entry, p:prefix});  // also picked up from subfolders
     }
   }
 }
@@ -2028,16 +2093,23 @@ async function useDir(dir, add){
     clearWorkspace();
   } else {
     for (var k = 0; k < FS.dirs.length; k++){
-      try { if (await FS.dirs[k].handle.isSameEntry(dir)){
+      var other = FS.dirs[k].handle;
+      try { if (await other.isSameEntry(dir)){
         toast(dir.name + " is already loaded."); return; } } catch(e){}
+      // a folder inside (or around) one that is open would load the same images twice
+      try { if (other.resolve && await other.resolve(dir)){
+        toast(dir.name + " is already open as part of " + other.name + ".", 6000); return; } } catch(e){}
+      try { if (dir.resolve && await dir.resolve(other)){
+        toast(dir.name + " contains " + other.name + ", which is already open. Use \u201cSave and close\u201d on " +
+              other.name + " first, or load the folders one by one.", 8000); return; } } catch(e){}
     }
   }
-  var entry = {handle:dir, id:uid()};
+  var entry = {handle:dir, id:uid(), subs:{}, read:{}};
   FS.dirs.push(entry);
   updateLinkBtn();
   var files = [], projects = [], bad = [];
   try {
-    await collect(dir, dir.name + "/", files, projects, bad);   // folder name becomes the tree root
+    await collect(dir, dir.name + "/", files, projects, bad, entry.subs);   // folder name becomes the tree root
   } catch(e){                             // the folder itself is gone (moved, renamed, unplugged)
     FS.dirs.splice(FS.dirs.indexOf(entry), 1);
     updateLinkBtn();
@@ -2052,35 +2124,40 @@ async function useDir(dir, add){
             "are downloaded to this computer (for example \u201cKeep downloaded\u201d), then load the folder again.");
     }, 900);
   }
-  var loaded = 0, savedEntries = [];
-  for (var i = 0; i < projects.length; i++){             // existing work takes precedence
+  var loaded = 0, entries = [];
+  for (var i = 0; i < projects.length; i++){             // every project.json in this folder tree
     try {
-      var txt = await (await projects[i].getFile()).text();
-      var data = JSON.parse(txt);
-      applyProject(data, add || i > 0);
-      savedEntries = savedEntries.concat(data.images || []);
+      var pf = await projects[i].h.getFile();
+      entries = entries.concat(entryList(JSON.parse(await pf.text()), projects[i].p, pf.lastModified));
+      entry.read[projects[i].p] = true;
       loaded++;
     } catch(e){}
   }
   if (!files.length){ toast("No images found in " + dir.name + "."); return; }
   files.forEach(function(f){ f._dirId = entry.id; });    // so each folder saves its own work
+  var before = S.images.length;
+  S.pending = entries;                    // only this folder's own project.json files
   addFiles(files);
-  // Saved annotations whose image is no longer in the folder (renamed or moved outside
-  // the tool) are carried along into every save, so they are never silently lost.
-  var have = {}, seen = {};
-  S.images.forEach(function(r){ if (r.dirId === entry.id) have[r.name] = 1; });
-  var orphans = savedEntries.filter(function(o){
-    if (o._used || !o.ann || !o.ann.length || have[o.name]) return false;
-    var key = o.path || o.name;
-    if (seen[key]) return false;
-    seen[key] = 1; return true;
+  S.pending = null;
+  var restored = S.images.slice(before).filter(function(r){ return r._restored; }).length;
+  // Saved work that could not be placed on an image (file renamed, moved or deleted outside
+  // the tool) is written back unchanged at every save, so it is never lost.
+  var kept = entries.filter(function(e){
+    return !e.used && !e.superseded && ((e.o.ann && e.o.ann.length) || e.o.pxPerMm);
   });
-  if (orphans.length) entry.extra = (entry.extra || []).concat(orphans);
+  if (kept.length) entry.extra = (entry.extra || []).concat(kept.map(function(e){
+    if (!e.o.t && e.t) e.o.t = new Date(e.t).toISOString();
+    return {o:e.o, home:e.P};
+  }));
+  var lost = kept.filter(function(e){ return e.o.ann && e.o.ann.length; });
   setTimeout(function(){
-    toast((loaded
-      ? dir.name + " loaded · " + files.length + " images · saved work restored"
-      : dir.name + " loaded · " + files.length + " images · no project.json found") +
-      (orphans.length ? " · " + orphans.length + " annotated image(s) in project.json not found in the folder (kept, not deleted)" : ""));
+    toast(dir.name + " loaded · " + files.length + " images · " +
+      (loaded ? restored + " with saved work" : "no project.json found"), 4000);
+    if (lost.length) alert(lost.length + " annotated image(s) in project.json could not be matched to an image in " +
+      dir.name + ":\n\n" + lost.slice(0, 8).map(function(e){ return e.o.path; }).join("\n") +
+      (lost.length > 8 ? "\n\u2026" : "") +
+      "\n\nTheir annotations are kept in project.json and are not deleted. If files were renamed or moved " +
+      "outside the tool, give them back their old name or place and load the folder again.");
   }, 700);
 }
 async function fsSave(){
@@ -2088,18 +2165,38 @@ async function fsSave(){
   FS.busy = true;
   try {
     for (var k = 0; k < FS.dirs.length; k++){
-      var d = FS.dirs[k];
-      var live = S.images.filter(function(r){ return r.dirId === d.id; }).map(serializeRec);
-      var livePath = {}, kept = {};
-      live.forEach(function(o){ livePath[o.path] = 1; });
-      (d.extra || []).forEach(function(o){             // closed or unmatched work: once, never twice
-        if (!livePath[o.path]) kept[o.path || o.name] = o;
+      // Each patient's work goes into project.json inside that patient's own folder, so the
+      // folder can be moved, renamed or opened on its own and still carries its annotations.
+      var d = FS.dirs[k], groups = {}, seen = {};
+      S.images.forEach(function(r){
+        if (r.dirId !== d.id) return;
+        var h = homeOf(r);
+        (groups[h] = groups[h] || []).push(serializeFor(r, h));
+        seen[h + "|" + r.path.slice(h.length)] = 1;
       });
-      var list = live.concat(Object.keys(kept).map(function(k){ return kept[k]; }));
-      if (!list.length) continue;
-      var fh = await d.handle.getFileHandle("project.json", {create:true});
-      var w = await fh.createWritable();
-      await w.write(projectJson(list)); await w.close();  // live work plus patients closed earlier
+      (d.extra || []).forEach(function(x){             // closed or unmatched work: once, never twice
+        var segs = String(x.o.path || x.o.name).split("/");
+        var key = x.home + "|" + (segs.length > 1 ? segs.slice(1).join("/") : segs[0]);
+        if (seen[key]) return;
+        seen[key] = 1;
+        (groups[x.home] = groups[x.home] || []).push(x.o);
+      });
+      for (var h in groups){
+        var dh = (d.subs && d.subs[h]) || d.handle;
+        var fh = await dh.getFileHandle("project.json", {create:true});
+        var w = await fh.createWritable();
+        await w.write(projectJson(groups[h])); await w.close();
+      }
+      // A project.json whose work now all lives in the patient folders' own files (for example
+      // one saved for a whole parent folder by an older version) is emptied, so it cannot
+      // reappear later as stale or "unmatched" work. Only after the files above are written.
+      for (var P in (d.read || {})){
+        if (groups[P] || !d.subs || !d.subs[P]) continue;
+        var eh = await d.subs[P].getFileHandle("project.json", {create:true});
+        var ew = await eh.createWritable();
+        await ew.write(projectJson([])); await ew.close();
+        delete d.read[P];
+      }
     }
     dirty = false; markSavedDir();
     return true;
@@ -2127,7 +2224,9 @@ async function closePatient(plabel){
       d.extra = d.extra || [];
       prevLen[d.id] = d.extra.length;
       d.extra = d.extra.concat(
-        list.filter(function(r){ return r.dirId === d.id; }).map(serializeRec));
+        list.filter(function(r){ return r.dirId === d.id; }).map(function(r){
+          var h = homeOf(r); return {o:serializeFor(r, h), home:h};
+        }));
     });
     var ok = await fsSave();
     if (!ok){ await new Promise(function(res){ setTimeout(res, 500); }); ok = await fsSave(); }
